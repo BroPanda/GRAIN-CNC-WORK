@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // node:sqlite та fs-операції з файлами задач живуть тільки на сервері
-  serverExternalPackages: ["node:sqlite"],
+  // драйвер Postgres тримає нативні зʼєднання — не бандлимо його
+  serverExternalPackages: ["pg"],
   experimental: {
     serverActions: {
       // STL/STEP моделі бувають важкі

@@ -13,7 +13,7 @@ export default async function NewTaskPage() {
       <p className="mb-5 text-sm text-ink-muted">
         Задача стане в кінець черги. Терміновим і позначеним «на початок» — місце зверху.
       </p>
-      <TaskForm me={me} millers={listMillers()} />
+      <TaskForm me={me} millers={await listMillers()} />
     </div>
   );
 }

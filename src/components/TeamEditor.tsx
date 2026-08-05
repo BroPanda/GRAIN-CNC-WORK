@@ -72,7 +72,7 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
                   </div>
                   <div className="truncate text-xs text-ink-dim">
                     {ROLE_LABELS[user.role]}
-                    {user.position ? ` · ${user.position}` : ""}
+                    {user.job_title ? ` · ${user.job_title}` : ""}
                     {user.telegram_username ? ` · @${user.telegram_username}` : ""}
                   </div>
                 </div>
@@ -141,12 +141,12 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="member-position">
+            <label className="label" htmlFor="member-job">
               Посада
             </label>
             <input
-              id="member-position"
-              name="position"
+              id="member-job"
+              name="job_title"
               className="field"
               placeholder="Фрезерування"
             />

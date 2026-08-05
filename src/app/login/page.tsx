@@ -10,7 +10,7 @@ const ROLE_ORDER = ["owner", "modeler", "miller"] as const;
 
 export default async function LoginPage() {
   if (await getCurrentUser()) redirect("/queue");
-  const users = listActiveUsers();
+  const users = await listActiveUsers();
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-4 py-10">
@@ -69,7 +69,7 @@ export default async function LoginPage() {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-semibold">{u.name}</span>
                           <span className="block truncate text-xs text-ink-dim">
-                            {u.position ?? ROLE_LABELS[u.role]}
+                            {u.job_title ?? ROLE_LABELS[u.role]}
                             {u.telegram_username ? ` · @${u.telegram_username}` : ""}
                           </span>
                         </span>

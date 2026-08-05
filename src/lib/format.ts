@@ -1,8 +1,12 @@
 import type { Priority, Status } from "./types";
 
-/** SQLite повертає час у UTC як "YYYY-MM-DD HH:MM:SS". */
+/**
+ * Час із БД приходить як ISO-рядок ("2026-08-05T18:46:27.705Z").
+ * Формат без зони ("YYYY-MM-DD HH:MM:SS") теж підтримуємо — трактуємо як UTC.
+ */
 export function parseUtc(value: string): Date {
-  return new Date(`${value.replace(" ", "T")}Z`);
+  const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(value);
+  return new Date(hasZone ? value : `${value.replace(" ", "T")}Z`);
 }
 
 export function formatDateTime(value: string): string {

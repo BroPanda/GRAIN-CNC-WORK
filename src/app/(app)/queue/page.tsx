@@ -42,10 +42,15 @@ export default async function QueuePage({
     return tasks;
   };
 
-  const inProgress = apply(listTasks(me, ["in_progress"]));
-  const queued = apply(listTasks(me, ["queued"]));
-  const rework = apply(listTasks(me, ["rework"]));
-  const stats = getStats(me);
+  const [inProgressAll, queuedAll, reworkAll, stats] = await Promise.all([
+    listTasks(me, ["in_progress"]),
+    listTasks(me, ["queued"]),
+    listTasks(me, ["rework"]),
+    getStats(me),
+  ]);
+  const inProgress = apply(inProgressAll);
+  const queued = apply(queuedAll);
+  const rework = apply(reworkAll);
 
   return (
     <div className="mx-auto w-full max-w-4xl">

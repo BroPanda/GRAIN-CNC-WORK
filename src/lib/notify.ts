@@ -1,4 +1,4 @@
-import { db, queryAll } from "./db";
+import { queryAll, run } from "./db";
 import type { Task, User } from "./types";
 
 export type EventType =
@@ -43,8 +43,9 @@ export function recordEvent(
   actorId: number,
   type: EventType,
   comment = ""
-): void {
-  db.prepare("INSERT INTO task_events (task_id, actor_id, type, comment) VALUES (?, ?, ?, ?)").run(
+): Promise<void> {
+  return run(
+    "INSERT INTO task_events (task_id, actor_id, type, comment) VALUES (?, ?, ?, ?)",
     taskId,
     actorId,
     type,
@@ -53,40 +54,44 @@ export function recordEvent(
 }
 
 /** Власник + усі моделювальники — ті, хто веде задачі. */
-export function managementAudience(): number[] {
-  return queryAll<{ id: number }>(
+export async function managementAudience(): Promise<number[]> {
+  const rows = await queryAll<{ id: number }>(
     "SELECT id FROM users WHERE is_active = 1 AND role IN ('owner','modeler')"
-  ).map((r) => r.id);
+  );
+  return rows.map((r) => r.id);
 }
 
 /** Кому «прилітає» нова/повернута в чергу задача. */
-export function millerAudience(task: Pick<Task, "assignee_id">): number[] {
+export async function millerAudience(task: Pick<Task, "assignee_id">): Promise<number[]> {
   if (task.assignee_id) return [task.assignee_id];
-  return queryAll<{ id: number }>(
+  const rows = await queryAll<{ id: number }>(
     "SELECT id FROM users WHERE is_active = 1 AND role = 'miller'"
-  ).map((r) => r.id);
+  );
+  return rows.map((r) => r.id);
 }
 
-export function notify(
+export async function notify(
   userIds: number[],
   actor: User,
   taskId: number,
   type: EventType,
   text: string
-): void {
-  const stmt = db.prepare(
-    "INSERT INTO notifications (user_id, task_id, actor_id, type, text) VALUES (?, ?, ?, ?, ?)"
+): Promise<void> {
+  const targets = [...new Set(userIds)].filter((id) => id !== actor.id); // собі не сповіщаємо
+  if (!targets.length) return;
+
+  // один INSERT на всіх адресатів
+  const values = targets.map(() => "(?, ?, ?, ?, ?)").join(", ");
+  const params = targets.flatMap((uid) => [uid, taskId, actor.id, type, text]);
+  await run(
+    `INSERT INTO notifications (user_id, task_id, actor_id, type, text) VALUES ${values}`,
+    ...params
   );
-  const seen = new Set<number>();
-  for (const uid of userIds) {
-    if (uid === actor.id || seen.has(uid)) continue; // собі не сповіщаємо
-    seen.add(uid);
-    stmt.run(uid, taskId, actor.id, type, text);
-  }
 }
 
-export function markAllRead(userId: number): void {
-  db.prepare(
-    "UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND read_at IS NULL"
-  ).run(userId);
+export function markAllRead(userId: number): Promise<void> {
+  return run(
+    "UPDATE notifications SET read_at = now() WHERE user_id = ? AND read_at IS NULL",
+    userId
+  );
 }

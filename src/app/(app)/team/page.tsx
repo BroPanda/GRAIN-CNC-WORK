@@ -13,7 +13,7 @@ export default async function TeamPage() {
       <p className="mb-4 text-sm text-ink-muted">
         Відділ моделювання, фрезерування та їхні можливості в задачнику
       </p>
-      <TeamEditor users={listUsers()} meId={me.id} />
+      <TeamEditor users={await listUsers()} meId={me.id} />
     </div>
   );
 }

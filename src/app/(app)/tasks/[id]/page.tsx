@@ -42,13 +42,15 @@ const EVENT_TONE: Record<string, string> = {
 export default async function TaskPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireUser();
   const { id } = await params;
-  const task = getTask(Number(id));
+  const task = await getTask(Number(id));
   if (!task || !canSeeTask(me, task)) notFound();
 
   const abilities = abilitiesFor(me);
-  const files = getTaskFiles(task.id);
-  const events = getTaskEvents(task.id);
-  const millers = listMillers();
+  const [files, events, millers] = await Promise.all([
+    getTaskFiles(task.id),
+    getTaskEvents(task.id),
+    listMillers(),
+  ]);
   const due = dueMeta(task.due_date);
   const canUpload = can(me, "can_upload_files");
 

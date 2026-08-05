@@ -9,7 +9,7 @@ import { chromium, devices } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 
-const BASE = process.argv[2] ?? "http://localhost:3111";
+const BASE = process.argv[2] ?? "http://localhost:3000";
 const SHOTS = path.join(process.cwd(), "screens");
 fs.mkdirSync(SHOTS, { recursive: true });
 

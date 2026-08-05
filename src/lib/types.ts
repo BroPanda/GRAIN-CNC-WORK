@@ -44,7 +44,8 @@ export interface User {
   name: string;
   telegram_username: string | null;
   role: Role;
-  position: string | null;
+  /** Посада («Фрезерування», «Моделювання»…). `position` — небезпечне ім'я в SQL. */
+  job_title: string | null;
   is_active: number;
   can_create_tasks: number;
   can_edit_tasks: number;

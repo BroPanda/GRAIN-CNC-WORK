@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const unread = unreadCount(user.id);
+  const unread = await unreadCount(user.id);
   const showTeam = can(user, "can_manage_team");
   const showCreate = can(user, "can_create_tasks");
 

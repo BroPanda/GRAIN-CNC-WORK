@@ -10,7 +10,7 @@ export default async function ArchivePage({
   const me = await requireUser();
   const { q } = await searchParams;
   const search = q ?? "";
-  const tasks = listArchive(me, search);
+  const tasks = await listArchive(me, search);
 
   return (
     <div className="mx-auto w-full max-w-4xl">

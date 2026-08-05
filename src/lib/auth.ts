@@ -17,7 +17,7 @@ export async function getCurrentUser(): Promise<User | null> {
   const id = Number(raw);
   if (!Number.isInteger(id) || id <= 0) return null;
 
-  return queryOne<User>("SELECT * FROM users WHERE id = ? AND is_active = 1", id);
+  return await queryOne<User>("SELECT * FROM users WHERE id = ? AND is_active = 1", id);
 }
 
 export async function requireUser(): Promise<User> {

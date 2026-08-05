@@ -1,14 +1,18 @@
 /**
- * Демо-наповнення задачника: кілька типових робіт ЧПУ + STL-модель.
+ * Демо-наповнення задачника: типові роботи ЧПУ + STL-модель.
+ * Команду не чіпає (див. scripts/reset-team.mjs).
+ *
  * Запуск: node scripts/seed-demo.mjs
  */
-import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { connect } from "./db.mjs";
 
 const root = process.cwd();
-const db = new DatabaseSync(path.join(root, "data", "grain.db"));
+const MILLER = 3; // Володя
+const MODELER = 2; // Тарас
+const OWNER = 1; // Світлана
 
 const tasks = [
   {
@@ -24,7 +28,7 @@ const tasks = [
     priority: "urgent",
     due: 0,
     status: "in_progress",
-    worker: 3,
+    worker: MILLER,
   },
   {
     code: "C-102",
@@ -65,7 +69,7 @@ const tasks = [
     priority: "normal",
     due: 8,
     status: "queued",
-    assignee: 3,
+    assignee: MILLER,
   },
   {
     code: "C-105",
@@ -94,7 +98,7 @@ const tasks = [
     priority: "normal",
     due: -6,
     status: "done",
-    worker: 3,
+    worker: MILLER,
   },
 ];
 
@@ -133,63 +137,72 @@ const shift = (days) => {
   return d.toISOString().slice(0, 10);
 };
 
-db.exec("DELETE FROM notifications; DELETE FROM task_events; DELETE FROM task_files; DELETE FROM tasks");
-// скидаємо автоінкремент, щоб id задач збігались із кодами C-101…C-106
-db.exec("DELETE FROM sqlite_sequence WHERE name IN ('tasks','task_files','task_events','notifications')");
+const client = await connect();
+
+await client.query("DELETE FROM notifications");
+await client.query("DELETE FROM task_events");
+await client.query("DELETE FROM task_files");
+await client.query("DELETE FROM tasks");
+// щоб id задач збігались із кодами C-101…C-106
+for (const seq of ["tasks", "task_files", "task_events", "notifications"]) {
+  await client.query(`ALTER SEQUENCE ${seq}_id_seq RESTART WITH 1`);
+}
 fs.rmSync(path.join(root, "data", "uploads"), { recursive: true, force: true });
 
-const insertTask = db.prepare(`
-  INSERT INTO tasks (code, title, description, customer, order_no, material, thickness_mm,
-    quantity, priority, due_date, status, assignee_id, worker_id, queue_pos, created_by,
-    started_at, finished_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-`);
-const insertEvent = db.prepare(
-  "INSERT INTO task_events (task_id, actor_id, type, comment) VALUES (?, ?, ?, ?)"
-);
-const insertFile = db.prepare(`
-  INSERT INTO task_files (task_id, kind, original_name, stored_name, ext, size_bytes, uploaded_by)
-  VALUES (?, ?, ?, ?, ?, ?, 1)
-`);
-const insertNotif = db.prepare(
-  "INSERT INTO notifications (user_id, task_id, actor_id, type, text) VALUES (?, ?, ?, ?, ?)"
-);
+for (const [i, t] of tasks.entries()) {
+  const closed = t.status === "done";
+  const started = t.status === "in_progress" || closed;
 
-tasks.forEach((t, i) => {
-  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-  const info = insertTask.run(
-    t.code,
-    t.title,
-    t.description,
-    t.customer,
-    t.order_no,
-    t.material,
-    t.thickness_mm,
-    t.quantity,
-    t.priority,
-    shift(t.due),
-    t.status,
-    t.assignee ?? null,
-    t.worker ?? null,
-    i + 1,
-    t.status === "in_progress" || t.status === "done" ? now : null,
-    t.status === "done" ? now : null
+  const { rows } = await client.query(
+    `INSERT INTO tasks (code, title, description, customer, order_no, material, thickness_mm,
+       quantity, priority, due_date, status, assignee_id, worker_id, queue_pos, created_by,
+       started_at, finished_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+       ${started ? "now()" : "NULL"}, ${closed ? "now()" : "NULL"})
+     RETURNING id`,
+    [
+      t.code,
+      t.title,
+      t.description,
+      t.customer,
+      t.order_no,
+      t.material,
+      t.thickness_mm,
+      t.quantity,
+      t.priority,
+      shift(t.due),
+      t.status,
+      t.assignee ?? null,
+      t.worker ?? null,
+      i + 1,
+      OWNER,
+    ]
   );
-  const id = Number(info.lastInsertRowid);
+  const id = rows[0].id;
 
-  const MILLER = 3; // Володя
-  insertEvent.run(id, 1, "created", "");
-  if (t.worker) insertEvent.run(id, t.worker, "taken", "");
-  if (t.status === "done") insertEvent.run(id, t.worker ?? MILLER, "done", "Здано, упаковано.");
+  const event = (actor, type, comment = "") =>
+    client.query(
+      "INSERT INTO task_events (task_id, actor_id, type, comment) VALUES ($1,$2,$3,$4)",
+      [id, actor, type, comment]
+    );
+  const notif = (userId, actor, type, text) =>
+    client.query(
+      "INSERT INTO notifications (user_id, task_id, actor_id, type, text) VALUES ($1,$2,$3,$4,$5)",
+      [userId, id, actor, type, text]
+    );
+
+  await event(OWNER, "created");
+  if (t.worker) await event(t.worker, "taken");
+  if (closed) await event(t.worker ?? MILLER, "done", "Здано, упаковано.");
+
   if (t.reworkReason) {
-    insertEvent.run(id, MILLER, "rework", t.reworkReason);
-    // сповіщення летять власнику і відділу моделювання
+    await event(MILLER, "rework", t.reworkReason);
     const text = `Володя відправив ${t.code} «${t.title}» на доопрацювання: ${t.reworkReason}`;
-    insertNotif.run(1, id, MILLER, "rework", text);
-    insertNotif.run(2, id, MILLER, "rework", text);
+    await notif(OWNER, MILLER, "rework", text);
+    await notif(MODELER, MILLER, "rework", text);
   }
   if (t.worker && t.status === "in_progress") {
-    insertNotif.run(1, id, t.worker, "taken", `Володя взяв у роботу ${t.code} «${t.title}»`);
+    await notif(OWNER, t.worker, "taken", `Володя взяв у роботу ${t.code} «${t.title}»`);
   }
 
   if (t.model) {
@@ -198,8 +211,13 @@ tasks.forEach((t, i) => {
     const stored = `${crypto.randomUUID()}.stl`;
     const stl = makeCubeStl();
     fs.writeFileSync(path.join(dir, stored), stl);
-    insertFile.run(id, "model", "kava-logo.stl", stored, "stl", stl.byteLength);
+    await client.query(
+      `INSERT INTO task_files (task_id, kind, original_name, stored_name, ext, size_bytes, uploaded_by)
+       VALUES ($1,'model','kava-logo.stl',$2,'stl',$3,$4)`,
+      [id, stored, stl.byteLength, OWNER]
+    );
   }
-});
+}
 
 console.log(`Готово: ${tasks.length} задач у базі.`);
+await client.end();

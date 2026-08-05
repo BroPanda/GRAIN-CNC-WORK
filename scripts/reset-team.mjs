@@ -4,25 +4,25 @@
  *
  * Запуск: node scripts/reset-team.mjs
  */
-import { DatabaseSync } from "node:sqlite";
-import path from "node:path";
+import { connect } from "./db.mjs";
 
-const db = new DatabaseSync(path.join(process.cwd(), "data", "grain.db"));
+const client = await connect();
 
-db.exec("PRAGMA foreign_keys = ON");
-db.exec("DELETE FROM users");
-db.exec("DELETE FROM sqlite_sequence WHERE name = 'users'");
+await client.query("DELETE FROM users");
+await client.query("ALTER SEQUENCE users_id_seq RESTART WITH 1");
 
-const insert = db.prepare(`
-  INSERT INTO users (name, telegram_username, role, position, can_create_tasks,
+const insert = `
+  INSERT INTO users (name, telegram_username, role, job_title, can_create_tasks,
     can_edit_tasks, can_reorder_queue, can_upload_files, can_take_tasks,
     can_close_tasks, can_manage_team)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+`;
 
-insert.run("Світлана", null, "owner", "Директор", 1, 1, 1, 1, 1, 1, 1);
-insert.run("Тарас", null, "modeler", "Моделювання", 1, 1, 0, 1, 0, 0, 0);
-insert.run("Володя", null, "miller", "Фрезерування", 0, 0, 0, 1, 1, 1, 0);
+await client.query(insert, ["Світлана", null, "owner", "Директор", 1, 1, 1, 1, 1, 1, 1]);
+await client.query(insert, ["Тарас", null, "modeler", "Моделювання", 1, 1, 0, 1, 0, 0, 0]);
+await client.query(insert, ["Володя", null, "miller", "Фрезерування", 0, 0, 0, 1, 1, 1, 0]);
 
-const users = db.prepare("SELECT id, name, role FROM users ORDER BY id").all();
-console.log("Команда:", users.map((u) => `${u.id}=${u.name} (${u.role})`).join(", "));
+const { rows } = await client.query("SELECT id, name, role FROM users ORDER BY id");
+console.log("Команда:", rows.map((u) => `${u.id}=${u.name} (${u.role})`).join(", "));
+
+await client.end();

@@ -16,8 +16,8 @@ const TYPE_TONE: Record<string, string> = {
 
 export default async function NotificationsPage() {
   const me = await requireUser();
-  const items = listNotifications(me.id);
-  const unread = unreadCount(me.id);
+  const items = await listNotifications(me.id);
+  const unread = await unreadCount(me.id);
 
   return (
     <div className="mx-auto w-full max-w-2xl">

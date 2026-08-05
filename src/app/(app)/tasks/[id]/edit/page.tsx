@@ -7,7 +7,7 @@ import TaskForm from "@/components/TaskForm";
 export default async function EditTaskPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireUser();
   const { id } = await params;
-  const task = getTaskRaw(Number(id));
+  const task = await getTaskRaw(Number(id));
   if (!task) notFound();
   if (!can(me, "can_edit_tasks")) redirect(`/tasks/${task.id}`);
 
@@ -20,7 +20,7 @@ export default async function EditTaskPage({ params }: { params: Promise<{ id: s
       <p className="mb-5 text-sm text-ink-muted">
         {task.code ?? `#${task.id}`} · про зміни отримають сповіщення виконавець і керівництво.
       </p>
-      <TaskForm me={me} millers={listMillers()} task={task} />
+      <TaskForm me={me} millers={await listMillers()} task={task} />
     </div>
   );
 }

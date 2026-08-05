@@ -14,9 +14,9 @@ const TASK_SELECT = `
     a.name AS assignee_name,
     w.name AS worker_name,
     c.name AS author_name,
-    (SELECT COUNT(*) FROM task_files f WHERE f.task_id = t.id AND f.kind = 'image') AS image_count,
-    (SELECT COUNT(*) FROM task_files f WHERE f.task_id = t.id AND f.kind = 'model') AS model_count,
-    (SELECT COUNT(*) FROM task_files f WHERE f.task_id = t.id) AS file_count,
+    (SELECT COUNT(*)::int FROM task_files f WHERE f.task_id = t.id AND f.kind = 'image') AS image_count,
+    (SELECT COUNT(*)::int FROM task_files f WHERE f.task_id = t.id AND f.kind = 'model') AS model_count,
+    (SELECT COUNT(*)::int FROM task_files f WHERE f.task_id = t.id) AS file_count,
     (SELECT f.id FROM task_files f
        WHERE f.task_id = t.id AND f.kind = 'image' ORDER BY f.id LIMIT 1) AS cover
   FROM tasks t
@@ -25,24 +25,24 @@ const TASK_SELECT = `
   LEFT JOIN users c ON c.id = t.created_by
 `;
 
-export function listUsers(): User[] {
+export function listUsers(): Promise<User[]> {
   return queryAll<User>(
     `SELECT * FROM users
      ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'modeler' THEN 1 ELSE 2 END, name`
   );
 }
 
-export function listActiveUsers(): User[] {
-  return listUsers().filter((u) => u.is_active === 1);
+export async function listActiveUsers(): Promise<User[]> {
+  return (await listUsers()).filter((u) => u.is_active === 1);
 }
 
-export function listMillers(): User[] {
+export function listMillers(): Promise<User[]> {
   return queryAll<User>(
     "SELECT * FROM users WHERE role = 'miller' AND is_active = 1 ORDER BY name"
   );
 }
 
-export function getUser(id: number): User | null {
+export function getUser(id: number): Promise<User | null> {
   return queryOne<User>("SELECT * FROM users WHERE id = ?", id);
 }
 
@@ -51,7 +51,7 @@ export function getUser(id: number): User | null {
  * (assignee_id IS NULL) або закріплена саме за ним. Власник і моделювання
  * бачать усе.
  */
-export function listTasks(viewer: User, statuses: Status[]): TaskListItem[] {
+export function listTasks(viewer: User, statuses: Status[]): Promise<TaskListItem[]> {
   const placeholders = statuses.map(() => "?").join(",");
   const restrictToViewer = viewer.role === "miller";
   const sql = `${TASK_SELECT}
@@ -63,14 +63,14 @@ export function listTasks(viewer: User, statuses: Status[]): TaskListItem[] {
   return queryAll<TaskListItem>(sql, ...params);
 }
 
-export function listArchive(viewer: User, search: string): TaskListItem[] {
+export function listArchive(viewer: User, search: string): Promise<TaskListItem[]> {
   const restrictToViewer = viewer.role === "miller";
   const term = search.trim();
   const like = `%${term}%`;
   const sql = `${TASK_SELECT}
     WHERE t.status IN ('done','cancelled')
     ${restrictToViewer ? "AND (t.assignee_id IS NULL OR t.assignee_id = ? OR t.worker_id = ?)" : ""}
-    ${term ? "AND (t.title LIKE ? OR t.customer LIKE ? OR t.order_no LIKE ? OR t.code LIKE ?)" : ""}
+    ${term ? "AND (t.title ILIKE ? OR t.customer ILIKE ? OR t.order_no ILIKE ? OR t.code ILIKE ?)" : ""}
     ORDER BY COALESCE(t.finished_at, t.updated_at) DESC, t.id DESC
     LIMIT 200`;
   const params: (string | number)[] = [];
@@ -79,11 +79,11 @@ export function listArchive(viewer: User, search: string): TaskListItem[] {
   return queryAll<TaskListItem>(sql, ...params);
 }
 
-export function getTask(id: number): TaskListItem | null {
+export function getTask(id: number): Promise<TaskListItem | null> {
   return queryOne<TaskListItem>(`${TASK_SELECT} WHERE t.id = ?`, id);
 }
 
-export function getTaskRaw(id: number): Task | null {
+export function getTaskRaw(id: number): Promise<Task | null> {
   return queryOne<Task>("SELECT * FROM tasks WHERE id = ?", id);
 }
 
@@ -97,14 +97,14 @@ export function canSeeTask(viewer: User, task: Task): boolean {
   );
 }
 
-export function getTaskFiles(taskId: number): TaskFile[] {
+export function getTaskFiles(taskId: number): Promise<TaskFile[]> {
   return queryAll<TaskFile>(
     "SELECT * FROM task_files WHERE task_id = ? ORDER BY kind, id",
     taskId
   );
 }
 
-export function getTaskEvents(taskId: number): TaskEvent[] {
+export function getTaskEvents(taskId: number): Promise<TaskEvent[]> {
   return queryAll<TaskEvent>(
     `SELECT e.*, u.name AS actor_name, u.role AS actor_role
      FROM task_events e LEFT JOIN users u ON u.id = e.actor_id
@@ -113,7 +113,7 @@ export function getTaskEvents(taskId: number): TaskEvent[] {
   );
 }
 
-export function listNotifications(userId: number, limit = 60): Notification[] {
+export function listNotifications(userId: number, limit = 60): Promise<Notification[]> {
   return queryAll<Notification>(
     `SELECT n.*, u.name AS actor_name, t.title AS task_title, t.code AS task_code
      FROM notifications n
@@ -125,9 +125,9 @@ export function listNotifications(userId: number, limit = 60): Notification[] {
   );
 }
 
-export function unreadCount(userId: number): number {
+export function unreadCount(userId: number): Promise<number> {
   return count(
-    "SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL",
+    "SELECT COUNT(*)::int AS n FROM notifications WHERE user_id = ? AND read_at IS NULL",
     userId
   );
 }
@@ -140,19 +140,21 @@ export interface Stats {
   done_week: number;
 }
 
-export function getStats(viewer: User): Stats {
+export async function getStats(viewer: User): Promise<Stats> {
   const scope = viewer.role === "miller" ? " AND (assignee_id IS NULL OR assignee_id = ?)" : "";
   const params = viewer.role === "miller" ? [viewer.id] : [];
   const n = (where: string) =>
-    count(`SELECT COUNT(*) AS n FROM tasks WHERE ${where}${scope}`, ...params);
+    count(`SELECT COUNT(*)::int AS n FROM tasks WHERE ${where}${scope}`, ...params);
 
-  return {
-    queued: n("status = 'queued'"),
-    in_progress: n("status = 'in_progress'"),
-    rework: n("status = 'rework'"),
-    overdue: n(
-      "status IN ('queued','in_progress','rework') AND due_date IS NOT NULL AND due_date < date('now')"
+  const [queued, in_progress, rework, overdue, done_week] = await Promise.all([
+    n("status = 'queued'"),
+    n("status = 'in_progress'"),
+    n("status = 'rework'"),
+    n(
+      "status IN ('queued','in_progress','rework') AND due_date IS NOT NULL AND due_date < CURRENT_DATE"
     ),
-    done_week: n("status = 'done' AND finished_at >= datetime('now','-7 days')"),
-  };
+    n("status = 'done' AND finished_at >= now() - interval '7 days'"),
+  ]);
+
+  return { queued, in_progress, rework, overdue, done_week };
 }
