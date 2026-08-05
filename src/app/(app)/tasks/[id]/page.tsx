@@ -20,7 +20,7 @@ import {
 } from "@/lib/format";
 import TaskActions from "@/components/TaskActions";
 import { abilitiesFor } from "@/lib/abilities";
-import { blobEnabled } from "@/lib/storage";
+import { directUploadEnabled } from "@/lib/storage";
 import TaskFiles from "@/components/TaskFiles";
 import CommentBox from "@/components/CommentBox";
 import AssigneeSelect from "@/components/AssigneeSelect";
@@ -146,7 +146,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               taskId={task.id}
               files={files}
               canUpload={canUpload}
-              directUpload={blobEnabled()}
+              directUpload={directUploadEnabled()}
             />
           </section>
         </div>

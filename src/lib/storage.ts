@@ -8,17 +8,26 @@ export * from "./storage-shared";
 
 /**
  * Два режими зберігання:
- *  • є BLOB_READ_WRITE_TOKEN (Vercel) — файли летять у Vercel Blob, у БД
- *    зберігається їх URL;
- *  • немає (локальна розробка) — файли лежать у data/uploads/<id задачі>/,
+ *  • хмара — файли летять у Vercel Blob, у БД зберігається їх URL;
+ *  • локальна розробка — файли лежать у data/uploads/<id задачі>/,
  *    у БД зберігається імʼя файлу.
  * У обох випадках назовні файл віддає лише /api/files/[id] після перевірки
  * прав, тому пряме посилання на сховище клієнту не потрапляє.
+ *
+ * Vercel авторизує сховище двома способами, і трапляються обидва:
+ *  • BLOB_READ_WRITE_TOKEN — класичний токен;
+ *  • BLOB_STORE_ID + VERCEL_OIDC_TOKEN — нова інтеграція, токен у змінних
+ *    проєкту не показується взагалі.
  */
-const useBlob = () => !!process.env.BLOB_READ_WRITE_TOKEN;
+const useBlob = () => !!(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 
-/** Чи вантажить браузер файли напряму у сховище (в обхід ліміту 4.5 МБ). */
-export const blobEnabled = (): boolean => useBlob();
+/**
+ * Чи може браузер вантажити файли напряму у сховище (в обхід ліміту Vercel
+ * на 4.5 МБ). Потрібен саме read-write токен: лише ним бібліотека вміє
+ * підписати одноразовий дозвіл для браузера, OIDC для цього не годиться.
+ * Без нього все одно працює — але через сервер і з лімітом 4.5 МБ.
+ */
+export const directUploadEnabled = (): boolean => !!process.env.BLOB_READ_WRITE_TOKEN;
 
 export const UPLOAD_ROOT = path.join(process.cwd(), "data", "uploads");
 
@@ -59,8 +68,8 @@ export async function saveUploadedFile(taskId: number, file: File): Promise<Save
   // доступна лише на читання. Краще сказати це прямо, ніж ENOENT з надр fs.
   if (process.env.VERCEL) {
     throw new Error(
-      "Сховище файлів не підключене: у проєкті немає BLOB_READ_WRITE_TOKEN. " +
-        "Підключіть Blob-сховище до проєкту у Vercel → Storage і передеплойте."
+      "Сховище файлів не підключене: у проєкті немає ні BLOB_READ_WRITE_TOKEN, " +
+        "ні BLOB_STORE_ID. Підключіть Blob-сховище у Vercel → Storage і передеплойте."
     );
   }
 
