@@ -52,6 +52,15 @@ export async function saveUploadedFile(taskId: number, file: File): Promise<Save
     return { storedName: blob.url, ext, size: buf.byteLength, kind };
   }
 
+  // У хмарі писати на диск нема куди — файлова система там тимчасова й
+  // доступна лише на читання. Краще сказати це прямо, ніж ENOENT з надр fs.
+  if (process.env.VERCEL) {
+    throw new Error(
+      "Сховище файлів не підключене: у проєкті немає BLOB_READ_WRITE_TOKEN. " +
+        "Підключіть Blob-сховище до проєкту у Vercel → Storage і передеплойте."
+    );
+  }
+
   const dir = taskDir(taskId);
   fs.mkdirSync(dir, { recursive: true });
   const storedName = `${crypto.randomUUID()}.${ext}`;

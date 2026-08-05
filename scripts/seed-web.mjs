@@ -116,7 +116,15 @@ const page = await ctx.newPage();
 /* ── Світлана створює задачі ── */
 await loginAs(page, "Світлана");
 
+// що вже є в черзі — щоб повторний запуск не наплодив дублікатів
+await page.goto(`${BASE}/queue`, { waitUntil: "networkidle" });
+const existing = (await page.locator("body").textContent()) ?? "";
+
 for (const t of tasks) {
+  if (existing.includes(t.title)) {
+    console.log(`= вже є, пропускаю: ${t.title}`);
+    continue;
+  }
   await page.goto(`${BASE}/tasks/new`, { waitUntil: "networkidle" });
   await page.fill("#title", t.title);
   await page.fill("#description", t.description);
@@ -146,7 +154,12 @@ await loginAs(page, "Володя");
 
 for (const t of tasks.filter((t) => t.take || t.rework)) {
   const card = page.locator("article").filter({ hasText: t.customer }).first();
-  await card.getByRole("button", { name: /Взяти в роботу/ }).click();
+  const take = card.getByRole("button", { name: /Взяти в роботу/ });
+  if ((await take.count()) === 0) {
+    console.log(`= вже не в черзі, пропускаю: ${t.title}`);
+    continue;
+  }
+  await take.click();
   await page.waitForTimeout(3000);
 
   if (!t.rework) {
