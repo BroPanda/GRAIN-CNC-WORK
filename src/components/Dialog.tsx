@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { IconX } from "./Icons";
 
 interface Props {
@@ -11,6 +12,12 @@ interface Props {
 }
 
 export default function Dialog({ open, title, onClose, children }: Props) {
+  // Портал у <body> обов'язковий: картки задачі мають backdrop-blur, а такий
+  // фільтр робить елемент точкою відліку для position:fixed усередині нього —
+  // діалог розтягувався б у межах картки й ліз би під сусідні блоки.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -24,9 +31,9 @@ export default function Dialog({ open, title, onClose, children }: Props) {
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div
         className="absolute inset-0 bg-black/65 backdrop-blur-sm"
@@ -53,6 +60,7 @@ export default function Dialog({ open, title, onClose, children }: Props) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
