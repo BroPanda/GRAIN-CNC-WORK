@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { readNotification } from "@/lib/actions";
-import { relativeTime } from "@/lib/format";
+import { formatExact, relativeTime } from "@/lib/format";
 import type { Notification } from "@/lib/types";
 import { useAction } from "./useAction";
 import { IconCheck } from "./Icons";
@@ -46,8 +46,9 @@ export default function NotificationItem({ item }: { item: Notification }) {
           )}
           {item.text}
         </p>
-        <span className="shrink-0 text-[11px] whitespace-nowrap text-ink-dim">
-          {relativeTime(item.created_at)}
+        <span className="shrink-0 text-right text-[11px] whitespace-nowrap text-ink-dim">
+          <span className="block font-mono">{formatExact(item.created_at)}</span>
+          <span className="block opacity-70">{relativeTime(item.created_at)}</span>
         </span>
         {!item.read_at && (
           <button

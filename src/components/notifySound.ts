@@ -75,7 +75,17 @@ export function playNotifSound(bucket: NotifBucket): void {
   }
 }
 
-const MUTE_KEY = "grain_sound_off";
+/* ------------------------------------------------------- налаштування звуку */
+
+const MUTE_KEY = "grain_sound_off"; // головний вимикач
+const BUCKETS_KEY = "grain_sound_off_buckets"; // вимкнені окремі категорії
+
+/** Подія для інших компонентів на сторінці: налаштування щойно змінились. */
+export const SOUND_CHANGED = "grain-sound-changed";
+
+function announce(): void {
+  window.dispatchEvent(new Event(SOUND_CHANGED));
+}
 
 export function soundMuted(): boolean {
   if (typeof localStorage === "undefined") return false;
@@ -84,4 +94,32 @@ export function soundMuted(): boolean {
 
 export function setSoundMuted(muted: boolean): void {
   localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
+  announce();
+}
+
+export function mutedBuckets(): NotifBucket[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(BUCKETS_KEY) ?? "[]") as unknown;
+    return Array.isArray(raw) ? (raw.filter((v) => typeof v === "string") as NotifBucket[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function isBucketMuted(bucket: NotifBucket): boolean {
+  return mutedBuckets().includes(bucket);
+}
+
+export function setBucketMuted(bucket: NotifBucket, muted: boolean): void {
+  const next = new Set(mutedBuckets());
+  if (muted) next.add(bucket);
+  else next.delete(bucket);
+  localStorage.setItem(BUCKETS_KEY, JSON.stringify([...next]));
+  announce();
+}
+
+/** Чи треба взагалі дзеленчати на подію цієї категорії. */
+export function shouldPlay(bucket: NotifBucket): boolean {
+  return !soundMuted() && !isBucketMuted(bucket);
 }

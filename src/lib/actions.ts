@@ -17,6 +17,7 @@ import {
   recordEvent,
   taskLabel,
 } from "./notify";
+import { plural } from "./format";
 import { type NotifGroup, isNotifGroup } from "./notif-groups";
 import { deleteStoredFile, saveUploadedFile, statBlob } from "./storage";
 import { extOf, kindForExt } from "./storage-shared";
@@ -603,7 +604,11 @@ async function announceFiles(
     user,
     task.id,
     "files_added",
-    `${user.name} додав ${names.length} файл(ів) до ${taskLabel(task)}`
+    `${user.name} додав ${names.length} ${plural(names.length, [
+      "файл",
+      "файли",
+      "файлів",
+    ])} до ${taskLabel(task)}`
   );
 }
 

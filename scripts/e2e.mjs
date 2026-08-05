@@ -279,6 +279,29 @@ const browser = await chromium.launch();
     !filesTabText.includes("на доопрацювання")
   );
 
+  // Звук окремої категорії вимикається і переживає перезавантаження
+  await page.getByRole("button", { name: "Вимкнути звук: Доопрацювання" }).first().click();
+  await page.waitForTimeout(500);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  check(
+    "звук категорії вимкнено і збережено",
+    (await page.getByRole("button", { name: "Увімкнути звук: Доопрацювання" }).count()) > 0
+  );
+  check(
+    "інші категорії лишились зі звуком",
+    (await page.getByRole("button", { name: "Вимкнути звук: Виконано" }).count()) > 0
+  );
+  await page.getByRole("button", { name: "Увімкнути звук: Доопрацювання" }).first().click();
+  await page.waitForTimeout(400);
+
+  // Точний час на картці (на вкладці, де картки точно є)
+  await page.goto(`${BASE}/notifications`, { waitUntil: "networkidle" });
+  check(
+    "показано точну дату й час",
+    /\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/.test((await page.locator("body").textContent()) ?? "")
+  );
+
   // Поштучне прочитання
   await page.goto(`${BASE}/notifications?tab=rework`, { waitUntil: "networkidle" });
   const oneRead = page.getByRole("button", { name: "Позначити прочитаним" });
@@ -293,12 +316,51 @@ const browser = await chromium.launch();
   );
 
   await page.goto(`${BASE}/notifications`, { waitUntil: "networkidle" });
+  check(
+    "непрочитані показані окремим блоком",
+    ((await page.locator("body").textContent()) ?? "").includes("НОВІ") ||
+      (await page.locator("h2").filter({ hasText: /Нові/ }).count()) > 0
+  );
+
   await page.getByRole("button", { name: /Прочитати всі/ }).click();
   await page.waitForTimeout(2000);
+  const afterRead = (await page.locator("body").textContent()) ?? "";
+  check("після «прочитати всі» лічильник обнулився", afterRead.includes("Все прочитано"));
   check(
-    "після «прочитати всі» лічильник обнулився",
-    ((await page.locator("body").textContent()) ?? "").includes("Все прочитано")
+    "прочитані перейшли в свій блок",
+    (await page.locator("h2").filter({ hasText: /Прочитані/ }).count()) > 0
   );
+
+  // Статистика
+  await page.goto(`${BASE}/stats`, { waitUntil: "networkidle" });
+  const statsText = (await page.locator("body").textContent()) ?? "";
+  check(
+    "статистика: всі періоди на місці",
+    ["Сьогодні", "Цей тиждень", "Цей місяць", "Минулий місяць", "По місяцях"].every((t) =>
+      statsText.includes(t)
+    )
+  );
+  // підпис місяця має збігатись із поточним (перевірка на UTC-зсув)
+  const nowMonth = new Intl.DateTimeFormat("uk-UA", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Kyiv",
+  })
+    .format(new Date())
+    .replace(" р.", "");
+  check("статистика: місяць підписано правильно", statsText.includes(nowMonth), nowMonth);
+
+  await page.goto(`${BASE}/stats?from=2020-01-01&to=2020-12-31`, { waitUntil: "networkidle" });
+  check(
+    "статистика: порожній період",
+    ((await page.locator("body").textContent()) ?? "").includes("нічого не здано")
+  );
+  await page.goto(`${BASE}/stats?from=2020-01-01&to=2035-12-31`, { waitUntil: "networkidle" });
+  check(
+    "статистика: широкий період показує виконану задачу",
+    ((await page.locator("body").textContent()) ?? "").includes("SPA")
+  );
+  await shot(page, "12-desktop-stats");
 
   // Команда і права
   await page.goto(`${BASE}/team`, { waitUntil: "networkidle" });

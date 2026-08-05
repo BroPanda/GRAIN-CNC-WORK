@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { listArchive } from "@/lib/queries";
 import TaskCard from "@/components/TaskCard";
+import { IconChart } from "@/components/Icons";
 
 export default async function ArchivePage({
   searchParams,
@@ -14,8 +16,17 @@ export default async function ArchivePage({
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <h1 className="mb-1 text-2xl font-bold">Архів</h1>
-      <p className="mb-4 text-sm text-ink-muted">Виконані та скасовані задачі</p>
+      <div className="mb-4 flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="mb-1 text-2xl font-bold">Архів</h1>
+          <p className="text-sm text-ink-muted">Виконані та скасовані задачі</p>
+        </div>
+        {/* на телефоні таб-бар уже заповнений — сюди й ведемо до статистики */}
+        <Link href="/stats" className="btn btn-ghost btn-sm shrink-0">
+          <IconChart className="h-4 w-4" />
+          Статистика
+        </Link>
+      </div>
 
       <form className="mb-5 flex gap-2">
         <input

@@ -22,6 +22,17 @@ export function plural(n: number, forms: [string, string, string]): string {
   return forms[2];
 }
 
+/** Повна дата з точним часом: «05.08.2026, 19:29». */
+export function formatExact(value: string): string {
+  return parseUtc(value).toLocaleString("uk-UA", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function formatDateTime(value: string): string {
   return parseUtc(value).toLocaleString("uk-UA", {
     day: "2-digit",

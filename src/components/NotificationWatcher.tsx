@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { bucketForType } from "@/lib/notif-groups";
-import { playNotifSound, primeAudio, soundMuted } from "./notifySound";
+import { playNotifSound, primeAudio, shouldPlay } from "./notifySound";
 
 const POLL_MS = 15_000;
 
@@ -46,7 +46,10 @@ export default function NotificationWatcher({ userId }: { userId: number }) {
         // перший запит лише запамʼятовує стан — інакше дзенькне на кожному вході
         if (previous === null || data.id <= previous) return;
 
-        if (data.type && !soundMuted()) playNotifSound(bucketForType(data.type));
+        if (data.type) {
+          const bucket = bucketForType(data.type);
+          if (shouldPlay(bucket)) playNotifSound(bucket);
+        }
         router.refresh(); // підтягне лічильник на дзвіночку і список
       } catch {
         // мережа моргнула — просто спробуємо наступного разу

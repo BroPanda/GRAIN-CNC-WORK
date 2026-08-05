@@ -23,6 +23,8 @@ export default async function NotificationsPage({
   ]);
 
   const unreadHere = counts[active];
+  const unread = items.filter((n) => !n.read_at);
+  const read = items.filter((n) => n.read_at);
 
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -68,13 +70,32 @@ export default async function NotificationsPage({
         </p>
       )}
 
-      <ul className="flex flex-col gap-2">
-        {items.map((item) => (
-          <li key={item.id}>
-            <NotificationItem item={item} />
-          </li>
-        ))}
-      </ul>
+      {/* Непрочитане завжди зверху окремим блоком — щоб нове не губилось */}
+      {unread.length > 0 && (
+        <section className="mb-6">
+          <h2 className="label mb-2">Нові · {unread.length}</h2>
+          <ul className="flex flex-col gap-2">
+            {unread.map((item) => (
+              <li key={item.id}>
+                <NotificationItem item={item} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {read.length > 0 && (
+        <section>
+          <h2 className="label mb-2">Прочитані · {read.length}</h2>
+          <ul className="flex flex-col gap-2">
+            {read.map((item) => (
+              <li key={item.id}>
+                <NotificationItem item={item} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

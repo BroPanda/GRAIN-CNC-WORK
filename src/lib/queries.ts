@@ -184,3 +184,121 @@ export async function getStats(viewer: User): Promise<Stats> {
 
   return { queued, in_progress, rework, overdue, done_week };
 }
+
+/* ------------------------------------------------- статистика виконаних робіт */
+
+/**
+ * Усі підрахунки — за київським часом, інакше робота, здана ввечері,
+ * потрапляє в наступну добу (у базі час зберігається в UTC).
+ */
+const KYIV = "AT TIME ZONE 'Europe/Kyiv'";
+const DONE = `status = 'done' AND finished_at IS NOT NULL`;
+
+/** Фрезерувальник бачить свої роботи, керівництво — усі. */
+function doneScope(viewer: User): { sql: string; params: number[] } {
+  return viewer.role === "miller"
+    ? { sql: " AND worker_id = ?", params: [viewer.id] }
+    : { sql: "", params: [] };
+}
+
+export interface DoneSummary {
+  today: number;
+  week: number;
+  month: number;
+  prevMonth: number;
+}
+
+export async function doneSummary(viewer: User): Promise<DoneSummary> {
+  const scope = doneScope(viewer);
+  const n = (where: string) =>
+    count(`SELECT COUNT(*)::int AS n FROM tasks WHERE ${DONE} AND ${where}${scope.sql}`, ...scope.params);
+
+  const [today, week, month, prevMonth] = await Promise.all([
+    n(`(finished_at ${KYIV})::date = (now() ${KYIV})::date`),
+    n(
+      `date_trunc('week', finished_at ${KYIV}) = date_trunc('week', now() ${KYIV})`
+    ),
+    n(
+      `date_trunc('month', finished_at ${KYIV}) = date_trunc('month', now() ${KYIV})`
+    ),
+    n(
+      `date_trunc('month', finished_at ${KYIV})
+       = date_trunc('month', (now() ${KYIV}) - interval '1 month')`
+    ),
+  ]);
+
+  return { today, week, month, prevMonth };
+}
+
+export interface MonthCount {
+  month: string; // "2026-08"
+  n: number;
+}
+
+/** Помісячно за останній рік — щоб було видно, як іде рік. */
+export function doneByMonth(viewer: User, months = 12): Promise<MonthCount[]> {
+  const scope = doneScope(viewer);
+  return queryAll<MonthCount>(
+    `SELECT to_char(date_trunc('month', finished_at ${KYIV}), 'YYYY-MM') AS month,
+            COUNT(*)::int AS n
+     FROM tasks
+     WHERE ${DONE}
+       AND finished_at >= date_trunc('month', (now() ${KYIV}) - make_interval(months => ?))
+       ${scope.sql}
+     GROUP BY 1 ORDER BY 1 DESC`,
+    months - 1,
+    ...scope.params
+  );
+}
+
+export interface RangeStats {
+  total: number;
+  byWorker: { name: string | null; n: number }[];
+}
+
+/** Довільний період: «скільки здали з 1 по 15 серпня». Межі включно. */
+export async function doneInRange(
+  viewer: User,
+  from: string,
+  to: string
+): Promise<RangeStats> {
+  const scope = doneScope(viewer);
+  const period = `(t.finished_at ${KYIV})::date BETWEEN ?::date AND ?::date`;
+  const mine = viewer.role === "miller" ? " AND t.worker_id = ?" : "";
+  const where = `t.status = 'done' AND t.finished_at IS NOT NULL AND ${period}${mine}`;
+
+  const [total, byWorker] = await Promise.all([
+    count(
+      `SELECT COUNT(*)::int AS n FROM tasks t WHERE ${where}`,
+      from,
+      to,
+      ...scope.params
+    ),
+    queryAll<{ name: string | null; n: number }>(
+      `SELECT u.name AS name, COUNT(*)::int AS n
+       FROM tasks t LEFT JOIN users u ON u.id = t.worker_id
+       WHERE ${where}
+       GROUP BY u.name ORDER BY n DESC`,
+      from,
+      to,
+      ...scope.params
+    ),
+  ]);
+
+  return { total, byWorker };
+}
+
+/** Виконані задачі за період — списком, щоб можна було звірити руками. */
+export function listDoneInRange(viewer: User, from: string, to: string): Promise<TaskListItem[]> {
+  const scope = doneScope(viewer);
+  const mine = viewer.role === "miller" ? " AND t.worker_id = ?" : "";
+  return queryAll<TaskListItem>(
+    `${TASK_SELECT}
+     WHERE t.status = 'done' AND t.finished_at IS NOT NULL
+       AND (t.finished_at ${KYIV})::date BETWEEN ?::date AND ?::date${mine}
+     ORDER BY t.finished_at DESC LIMIT 200`,
+    from,
+    to,
+    ...scope.params
+  );
+}

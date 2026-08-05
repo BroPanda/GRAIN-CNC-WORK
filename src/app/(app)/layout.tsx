@@ -10,6 +10,7 @@ import NotificationWatcher from "@/components/NotificationWatcher";
 import {
   IconArchive,
   IconBell,
+  IconChart,
   IconPlus,
   IconQueue,
   IconTeam,
@@ -54,6 +55,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
           <NavLink href="/notifications" label="Сповіщення" badge={unread} variant="side">
             <IconBell />
+          </NavLink>
+          <NavLink href="/stats" label="Статистика" variant="side">
+            <IconChart />
           </NavLink>
           <NavLink href="/archive" label="Архів" variant="side">
             <IconArchive />

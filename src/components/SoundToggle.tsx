@@ -1,26 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { playNotifSound, primeAudio, setSoundMuted, soundMuted } from "./notifySound";
+import { playNotifSound, primeAudio } from "./notifySound";
+import { useSoundSettings } from "./useSoundSettings";
+import { IconBell, IconBellOff } from "./Icons";
 
 /**
- * Вимикач звуку сповіщень. Налаштування живе в браузері (localStorage):
- * у цеху й удома в однієї людини цілком різні побажання щодо звуку.
+ * Головний вимикач звуку. Окремі категорії глушаться дзвіночком на вкладці —
+ * тут лише «геть усе». Налаштування живе в браузері: у цеху й удома в однієї
+ * людини цілком різні побажання щодо звуку.
  */
 export default function SoundToggle() {
-  const [muted, setMuted] = useState<boolean | null>(null); // null — ще не прочитали
-
-  useEffect(() => setMuted(soundMuted()), []);
-
-  if (muted === null) return null;
+  const sound = useSoundSettings();
+  if (!sound.ready) return null; // не блимаємо неправильним станом до читання localStorage
 
   const toggle = () => {
-    const next = !muted;
-    setSoundMuted(next);
-    setMuted(next);
-    if (!next) {
+    const willMute = !sound.master;
+    sound.toggleMaster();
+    if (!willMute) {
       primeAudio();
-      playNotifSound("comment"); // одразу чути, що ввімкнулось і як звучить
+      playNotifSound("comment"); // одразу чути, що ввімкнулось
     }
   };
 
@@ -29,9 +27,17 @@ export default function SoundToggle() {
       type="button"
       onClick={toggle}
       className="btn btn-ghost btn-sm"
-      title={muted ? "Звук сповіщень вимкнено" : "Звук сповіщень увімкнено"}
+      title={sound.master ? "Звук сповіщень вимкнено" : "Звук сповіщень увімкнено"}
     >
-      {muted ? "🔇 Звук вимк." : "🔔 Звук увімк."}
+      {sound.master ? (
+        <>
+          <IconBellOff className="h-4 w-4 text-danger" /> Звук вимк.
+        </>
+      ) : (
+        <>
+          <IconBell className="h-4 w-4" /> Звук увімк.
+        </>
+      )}
     </button>
   );
 }

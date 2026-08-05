@@ -27,6 +27,26 @@ export function IconBell({ className = base }: P) {
   );
 }
 
+export function IconChart({ className = base }: P) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M4 20V4M4 20h16" strokeLinecap="round" />
+      <path d="M8 20v-6M13 20V8M18 20v-9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Дзвіночок, перекреслений — звук цієї категорії вимкнено. */
+export function IconBellOff({ className = base }: P) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M18 15V10a6 6 0 0 0-8.2-5.6M6.2 8.2A6 6 0 0 0 6 10v5l-1.5 3h13" strokeLinejoin="round" />
+      <path d="M9.5 21h5" strokeLinecap="round" />
+      <path d="M3 3l18 18" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function IconArchive({ className = base }: P) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
