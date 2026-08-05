@@ -43,7 +43,9 @@ export async function saveUploadedFile(taskId: number, file: File): Promise<Save
   if (useBlob()) {
     const { put } = await import("@vercel/blob");
     const blob = await put(`tasks/${taskId}/${crypto.randomUUID()}.${ext}`, buf, {
-      access: "public", // URL не публікується — файл віддає наш роут з перевіркою прав
+      // private: пряме посилання на сховище нічого не віддасть навіть якщо
+      // витече — файл доступний лише через /api/files/[id] з перевіркою прав
+      access: "private",
       addRandomSuffix: true,
       contentType: mimeForExt(ext),
     });
@@ -76,9 +78,11 @@ export async function readStoredFile(
   storedName: string
 ): Promise<ArrayBuffer | null> {
   if (storedName.startsWith("http")) {
-    const res = await fetch(storedName);
-    if (!res.ok) return null;
-    return await res.arrayBuffer();
+    const { get } = await import("@vercel/blob");
+    // приватний файл — звичайний fetch по URL його не віддасть, потрібен токен
+    const res = await get(storedName, { access: "private" }).catch(() => null);
+    if (!res || res.statusCode !== 200) return null;
+    return await new Response(res.stream).arrayBuffer();
   }
   const full = path.join(taskDir(taskId), storedName);
   if (!fs.existsSync(full)) return null;
