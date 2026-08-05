@@ -10,11 +10,14 @@ import {
   type EventType,
   managementAudience,
   markAllRead,
+  markGroupRead,
+  markOneRead,
   millerAudience,
   notify,
   recordEvent,
   taskLabel,
 } from "./notify";
+import { type NotifGroup, isNotifGroup } from "./notif-groups";
 import { deleteStoredFile, saveUploadedFile, statBlob } from "./storage";
 import { extOf, kindForExt } from "./storage-shared";
 import {
@@ -672,6 +675,31 @@ export async function readAllNotifications(): Promise<ActionResult> {
   try {
     const user = await requireUser();
     await markAllRead(user.id);
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Прочитати одне сповіщення (хрестик на картці). */
+export async function readNotification(notificationId: number): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    await markOneRead(user.id, notificationId);
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Прочитати цілу вкладку — напр. усі «Виконано» разом. */
+export async function readNotificationGroup(group: NotifGroup): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    if (!isNotifGroup(group)) throw new Error("Невідома вкладка");
+    await markGroupRead(user.id, group);
     refresh();
     return OK;
   } catch (e) {

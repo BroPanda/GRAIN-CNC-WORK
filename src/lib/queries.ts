@@ -1,4 +1,5 @@
 import { count, queryAll, queryOne } from "./db";
+import { NOTIF_GROUPS, type NotifGroup, bucketForType, groupFilter } from "./notif-groups";
 import type {
   Notification,
   Status,
@@ -113,16 +114,41 @@ export function getTaskEvents(taskId: number): Promise<TaskEvent[]> {
   );
 }
 
-export function listNotifications(userId: number, limit = 60): Promise<Notification[]> {
+export function listNotifications(
+  userId: number,
+  group: NotifGroup = "all",
+  limit = 60
+): Promise<Notification[]> {
+  const filter = groupFilter(group);
   return queryAll<Notification>(
     `SELECT n.*, u.name AS actor_name, t.title AS task_title, t.code AS task_code
      FROM notifications n
      LEFT JOIN users u ON u.id = n.actor_id
      LEFT JOIN tasks t ON t.id = n.task_id
-     WHERE n.user_id = ? ORDER BY n.id DESC LIMIT ?`,
+     WHERE n.user_id = ?${filter.sql} ORDER BY n.id DESC LIMIT ?`,
     userId,
+    ...filter.params,
     limit
   );
+}
+
+/** Скільки непрочитаних у кожній вкладці — для лічильників на табах. */
+export async function unreadByGroup(userId: number): Promise<Record<NotifGroup, number>> {
+  const rows = await queryAll<{ type: string; n: number }>(
+    `SELECT type, COUNT(*)::int AS n FROM notifications
+     WHERE user_id = ? AND read_at IS NULL GROUP BY type`,
+    userId
+  );
+
+  const counts = Object.fromEntries(NOTIF_GROUPS.map((g) => [g, 0])) as Record<
+    NotifGroup,
+    number
+  >;
+  for (const row of rows) {
+    counts[bucketForType(row.type)] += row.n;
+    counts.all += row.n;
+  }
+  return counts;
 }
 
 export function unreadCount(userId: number): Promise<number> {

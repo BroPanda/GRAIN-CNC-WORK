@@ -9,6 +9,19 @@ export function parseUtc(value: string): Date {
   return new Date(hasZone ? value : `${value.replace(" ", "T")}Z`);
 }
 
+/**
+ * Українська форма слова за числом: 1 непрочитане, 2 непрочитані,
+ * 5 непрочитаних. Порядок форм — [одне, двоє, багато].
+ */
+export function plural(n: number, forms: [string, string, string]): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return forms[2];
+  const mod10 = n % 10;
+  if (mod10 === 1) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4) return forms[1];
+  return forms[2];
+}
+
 export function formatDateTime(value: string): string {
   return parseUtc(value).toLocaleString("uk-UA", {
     day: "2-digit",

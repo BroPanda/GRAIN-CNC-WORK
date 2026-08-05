@@ -1,4 +1,5 @@
 import { queryAll, run } from "./db";
+import { type NotifGroup, groupFilter } from "./notif-groups";
 import type { Task, User } from "./types";
 
 export type EventType =
@@ -93,5 +94,26 @@ export function markAllRead(userId: number): Promise<void> {
   return run(
     "UPDATE notifications SET read_at = now() WHERE user_id = ? AND read_at IS NULL",
     userId
+  );
+}
+
+/** Одне сповіщення. user_id в умові — щоб не можна було чіпати чуже. */
+export function markOneRead(userId: number, notificationId: number): Promise<void> {
+  return run(
+    "UPDATE notifications SET read_at = now() WHERE id = ? AND user_id = ? AND read_at IS NULL",
+    notificationId,
+    userId
+  );
+}
+
+/** Ціла вкладка: «позначити всі виконані роботи прочитаними». */
+export function markGroupRead(userId: number, group: NotifGroup): Promise<void> {
+  const filter = groupFilter(group);
+  // groupFilter пише умову з префіксом n. — тут таблиця без псевдоніма
+  return run(
+    `UPDATE notifications SET read_at = now()
+     WHERE user_id = ? AND read_at IS NULL${filter.sql.replaceAll("n.type", "type")}`,
+    userId,
+    ...filter.params
   );
 }

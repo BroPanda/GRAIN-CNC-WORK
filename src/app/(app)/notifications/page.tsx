@@ -1,85 +1,79 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { listNotifications, unreadCount } from "@/lib/queries";
-import { readAllNotifications } from "@/lib/actions";
-import { relativeTime } from "@/lib/format";
+import { listNotifications, unreadByGroup } from "@/lib/queries";
+import { readAllNotifications, readNotificationGroup } from "@/lib/actions";
+import { NOTIF_GROUP_LABELS, type NotifGroup, isNotifGroup } from "@/lib/notif-groups";
+import { plural } from "@/lib/format";
 import { IconBell } from "@/components/Icons";
+import NotificationItem from "@/components/NotificationItem";
+import NotificationTabs from "@/components/NotificationTabs";
+import SoundToggle from "@/components/SoundToggle";
 
-const TYPE_TONE: Record<string, string> = {
-  rework: "border-l-warn",
-  done: "border-l-ok",
-  cancelled: "border-l-danger",
-  taken: "border-l-info",
-  created: "border-l-gold-500",
-  returned: "border-l-gold-500",
-};
-
-export default async function NotificationsPage() {
+export default async function NotificationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const me = await requireUser();
-  const items = await listNotifications(me.id);
-  const unread = await unreadCount(me.id);
+  const { tab } = await searchParams;
+  const active: NotifGroup = isNotifGroup(tab) ? tab : "all";
+
+  const [items, counts] = await Promise.all([
+    listNotifications(me.id, active),
+    unreadByGroup(me.id),
+  ]);
+
+  const unreadHere = counts[active];
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <header className="mb-4 flex items-center gap-3">
+      <header className="mb-4 flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">Сповіщення</h1>
           <p className="text-sm text-ink-muted">
-            {unread > 0 ? `${unread} непрочитаних` : "Все прочитано"}
+            {counts.all > 0
+              ? `${counts.all} ${plural(counts.all, [
+                  "непрочитане",
+                  "непрочитані",
+                  "непрочитаних",
+                ])}`
+              : "Все прочитано"}
           </p>
         </div>
-        {unread > 0 && (
-          <form
-            action={async () => {
-              "use server";
-              await readAllNotifications();
-            }}
-          >
-            <button type="submit" className="btn btn-ghost btn-sm">
-              Прочитати всі
-            </button>
-          </form>
-        )}
+        <SoundToggle />
       </header>
+
+      <NotificationTabs active={active} counts={counts} />
+
+      {unreadHere > 0 && (
+        <form
+          className="mb-3 flex justify-end"
+          action={async () => {
+            "use server";
+            if (active === "all") await readAllNotifications();
+            else await readNotificationGroup(active);
+          }}
+        >
+          <button type="submit" className="btn btn-ghost btn-sm">
+            {active === "all"
+              ? `Прочитати всі (${unreadHere})`
+              : `Прочитати «${NOTIF_GROUP_LABELS[active]}» (${unreadHere})`}
+          </button>
+        </form>
+      )}
 
       {!items.length && (
         <p className="card flex flex-col items-center gap-2 p-8 text-center text-sm text-ink-muted">
           <IconBell className="h-8 w-8 text-ink-dim" />
-          Поки що подій немає.
+          {active === "all" ? "Поки що подій немає." : "У цій вкладці порожньо."}
         </p>
       )}
 
       <ul className="flex flex-col gap-2">
-        {items.map((n) => {
-          const body = (
-            <div
-              className={`card border-l-4 p-3.5 transition ${
-                TYPE_TONE[n.type] ?? "border-l-white/15"
-              } ${n.read_at ? "opacity-65" : ""}`}
-            >
-              <div className="flex items-start gap-2">
-                <p className="min-w-0 flex-1 text-sm">
-                  {!n.read_at && (
-                    <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-gold-500 align-middle" />
-                  )}
-                  {n.text}
-                </p>
-                <span className="shrink-0 text-[11px] whitespace-nowrap text-ink-dim">
-                  {relativeTime(n.created_at)}
-                </span>
-              </div>
-              {n.task_code && (
-                <div className="mt-1 font-mono text-xs text-ink-dim">{n.task_code}</div>
-              )}
-            </div>
-          );
-
-          return (
-            <li key={n.id}>
-              {n.task_id ? <Link href={`/tasks/${n.task_id}`}>{body}</Link> : body}
-            </li>
-          );
-        })}
+        {items.map((item) => (
+          <li key={item.id}>
+            <NotificationItem item={item} />
+          </li>
+        ))}
       </ul>
     </div>
   );

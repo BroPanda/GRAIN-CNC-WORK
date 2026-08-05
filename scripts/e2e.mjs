@@ -256,7 +256,44 @@ const browser = await chromium.launch();
   const notifText = (await page.locator("body").textContent()) ?? "";
   check("сповіщення про доопрацювання прийшло власнику", notifText.includes("доопрацювання"));
   await shot(page, "10-desktop-notifications");
-  await page.getByRole("button", { name: "Прочитати всі" }).click();
+  // Вкладки сповіщень
+  const tabNames = await page.locator("nav ul a").allTextContents();
+  check(
+    "усі 8 вкладок сповіщень на місці",
+    tabNames.length === 8,
+    `${tabNames.length} шт`
+  );
+
+  // Доопрацювання лежить у своїй вкладці, а не десь ще
+  await page.goto(`${BASE}/notifications?tab=rework`, { waitUntil: "networkidle" });
+  check(
+    "вкладка «Доопрацювання» показує саме доопрацювання",
+    ((await page.locator("body").textContent()) ?? "").includes("доопрацювання")
+  );
+
+  // Порожня вкладка не показує чужого
+  await page.goto(`${BASE}/notifications?tab=files`, { waitUntil: "networkidle" });
+  const filesTabText = (await page.locator("body").textContent()) ?? "";
+  check(
+    "у вкладці «Файли» немає сповіщень про доопрацювання",
+    !filesTabText.includes("на доопрацювання")
+  );
+
+  // Поштучне прочитання
+  await page.goto(`${BASE}/notifications?tab=rework`, { waitUntil: "networkidle" });
+  const oneRead = page.getByRole("button", { name: "Позначити прочитаним" });
+  const hadUnread = await oneRead.count();
+  if (hadUnread) {
+    await oneRead.first().click();
+    await page.waitForTimeout(2500);
+  }
+  check(
+    "сповіщення можна прочитати поштучно",
+    hadUnread > 0 && (await oneRead.count()) === hadUnread - 1
+  );
+
+  await page.goto(`${BASE}/notifications`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Прочитати всі/ }).click();
   await page.waitForTimeout(2000);
   check(
     "після «прочитати всі» лічильник обнулився",
