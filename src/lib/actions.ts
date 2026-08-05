@@ -15,13 +15,16 @@ import {
   recordEvent,
   taskLabel,
 } from "./notify";
-import { deleteStoredFile, saveUploadedFile } from "./storage";
+import { deleteStoredFile, saveUploadedFile, statBlob } from "./storage";
+import { extOf, kindForExt } from "./storage-shared";
 import {
   PERMISSION_KEYS,
   type PermissionKey,
   type Priority,
   type Role,
+  type Task,
   type TaskFile,
+  type User,
 } from "./types";
 
 export interface ActionResult {
@@ -126,6 +129,10 @@ export async function createTask(fd: FormData): Promise<ActionResult> {
 
     const files = fd.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length) await attachFiles(taskId, files, user.id);
+
+    // у хмарі файли вже лежать у сховищі — форма передає лише посилання
+    const blobsRaw = str(fd, "blob_files");
+    if (blobsRaw) await attachBlobs(taskId, JSON.parse(blobsRaw) as UploadedBlob[], user.id);
 
     await recordEvent(taskId, user.id, "created");
     await notify(
@@ -549,6 +556,54 @@ async function attachFiles(taskId: number, files: File[], userId: number): Promi
   }
 }
 
+/**
+ * Файли, які браузер уже залив у Blob напряму — сервер отримує лише посилання.
+ * Довіряти йому не можна, тому кожне звіряємо зі сховищем (statBlob).
+ */
+export interface UploadedBlob {
+  url: string;
+  name: string;
+}
+
+async function attachBlobs(taskId: number, blobs: UploadedBlob[], userId: number): Promise<void> {
+  for (const blob of blobs) {
+    const ext = extOf(blob.name);
+    const kind = kindForExt(ext);
+    if (!kind) throw new Error(`Формат .${ext || "?"} не підтримується`);
+
+    const info = await statBlob(blob.url);
+    if (!info) throw new Error(`Файл «${blob.name}» не знайдено у сховищі`);
+
+    await run(
+      `INSERT INTO task_files (task_id, kind, original_name, stored_name, ext, size_bytes, uploaded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      taskId,
+      kind,
+      blob.name,
+      blob.url,
+      ext,
+      info.size,
+      userId
+    );
+  }
+}
+
+/** Спільний хвіст для обох способів завантаження: подія в історії + сповіщення. */
+async function announceFiles(
+  task: Task,
+  user: User,
+  names: string[]
+): Promise<void> {
+  await recordEvent(task.id, user.id, "files_added", names.join(", "));
+  await notify(
+    [...(await managementAudience()), ...(await millerAudience(task))],
+    user,
+    task.id,
+    "files_added",
+    `${user.name} додав ${names.length} файл(ів) до ${taskLabel(task)}`
+  );
+}
+
 export async function uploadTaskFiles(taskId: number, fd: FormData): Promise<ActionResult> {
   try {
     const user = await requireUser();
@@ -560,15 +615,30 @@ export async function uploadTaskFiles(taskId: number, fd: FormData): Promise<Act
     const files = fd.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
     if (!files.length) throw new Error("Не вибрано файлів");
     await attachFiles(taskId, files, user.id);
+    await announceFiles(task, user, files.map((f) => f.name));
 
-    await recordEvent(taskId, user.id, "files_added", files.map((f) => f.name).join(", "));
-    await notify(
-      [...(await managementAudience()), ...(await millerAudience(task))],
-      user,
-      taskId,
-      "files_added",
-      `${user.name} додав ${files.length} файл(ів) до ${taskLabel(task)}`
-    );
+    refresh(taskId);
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Те саме, але файли вже у сховищі — браузер залив їх повз сервер. */
+export async function attachUploadedBlobs(
+  taskId: number,
+  blobs: UploadedBlob[]
+): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    assertCan(user, "can_upload_files");
+    const task = await getTaskRaw(taskId);
+    if (!task) throw new Error("Задачу не знайдено");
+    if (!canSeeTask(user, task)) throw new Error("Немає доступу до задачі");
+    if (!blobs.length) throw new Error("Не вибрано файлів");
+
+    await attachBlobs(taskId, blobs, user.id);
+    await announceFiles(task, user, blobs.map((b) => b.name));
 
     refresh(taskId);
     return OK;

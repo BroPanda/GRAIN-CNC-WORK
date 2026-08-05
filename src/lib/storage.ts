@@ -17,6 +17,9 @@ export * from "./storage-shared";
  */
 const useBlob = () => !!process.env.BLOB_READ_WRITE_TOKEN;
 
+/** Чи вантажить браузер файли напряму у сховище (в обхід ліміту 4.5 МБ). */
+export const blobEnabled = (): boolean => useBlob();
+
 export const UPLOAD_ROOT = path.join(process.cwd(), "data", "uploads");
 
 export function taskDir(taskId: number): string {
@@ -66,6 +69,22 @@ export async function saveUploadedFile(taskId: number, file: File): Promise<Save
   const storedName = `${crypto.randomUUID()}.${ext}`;
   fs.writeFileSync(path.join(dir, storedName), buf);
   return { storedName, ext, size: buf.byteLength, kind };
+}
+
+/**
+ * Перевіряє, що URL справді вказує на файл у нашому сховищі, і повертає
+ * його розмір. Потрібно тому, що після завантаження напряму з браузера
+ * сервер бачить лише URL — на слово йому вірити не можна.
+ */
+export async function statBlob(url: string): Promise<{ size: number } | null> {
+  if (!useBlob()) return null;
+  const { head } = await import("@vercel/blob");
+  try {
+    const info = await head(url);
+    return { size: info.size };
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteStoredFile(taskId: number, storedName: string): Promise<void> {

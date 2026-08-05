@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { can, requireUser } from "@/lib/auth";
 import { getTaskRaw, listMillers } from "@/lib/queries";
+import { blobEnabled } from "@/lib/storage";
 import TaskForm from "@/components/TaskForm";
 
 export default async function EditTaskPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,7 +21,7 @@ export default async function EditTaskPage({ params }: { params: Promise<{ id: s
       <p className="mb-5 text-sm text-ink-muted">
         {task.code ?? `#${task.id}`} · про зміни отримають сповіщення виконавець і керівництво.
       </p>
-      <TaskForm me={me} millers={await listMillers()} task={task} />
+      <TaskForm me={me} millers={await listMillers()} task={task} directUpload={blobEnabled()} />
     </div>
   );
 }

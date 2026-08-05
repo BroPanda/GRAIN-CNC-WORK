@@ -24,7 +24,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(SHOTS, `${name}.p
 async function loginAs(page, name) {
   await page.context().clearCookies();
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: new RegExp(name) }).click();
+  // .first() — після повторних прогонів у команді може бути кілька тезок
+  await page.getByRole("button", { name: new RegExp(name) }).first().click();
   await page.waitForURL("**/queue", { timeout: 15000 });
 }
 

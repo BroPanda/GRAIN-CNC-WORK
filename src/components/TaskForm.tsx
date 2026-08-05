@@ -6,6 +6,7 @@ import { createTask, updateTask } from "@/lib/actions";
 import type { Task, User } from "@/lib/types";
 import { ACCEPT_ATTR, humanSize } from "@/lib/storage-shared";
 import { useAction } from "./useAction";
+import { uploadToBlob } from "./uploadToBlob";
 import { IconCube, IconImage, IconPaperclip, IconX } from "./Icons";
 
 const MATERIALS = [
@@ -27,9 +28,11 @@ interface Props {
   millers: User[];
   /** Якщо передано — режим редагування. */
   task?: Task;
+  /** У хмарі браузер вантажить файли напряму у сховище, минаючи сервер. */
+  directUpload: boolean;
 }
 
-export default function TaskForm({ me, millers, task }: Props) {
+export default function TaskForm({ me, millers, task, directUpload }: Props) {
   const router = useRouter();
   const { run, pending, error } = useAction();
   const formRef = useRef<HTMLFormElement>(null);
@@ -48,12 +51,16 @@ export default function TaskForm({ me, millers, task }: Props) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.delete("files");
-    picked.forEach((f) => fd.append("files", f));
 
-    run(
-      () => (editing ? updateTask(task.id, fd) : createTask(fd)),
-      () => router.push(editing ? `/tasks/${task.id}` : "/queue")
-    );
+    run(async () => {
+      if (directUpload && picked.length) {
+        // спершу файли — у сховище, у формі лишаються тільки посилання
+        fd.set("blob_files", JSON.stringify(await uploadToBlob(picked, null)));
+      } else {
+        picked.forEach((f) => fd.append("files", f));
+      }
+      return editing ? updateTask(task.id, fd) : createTask(fd);
+    }, () => router.push(editing ? `/tasks/${task.id}` : "/queue"));
   };
 
   return (

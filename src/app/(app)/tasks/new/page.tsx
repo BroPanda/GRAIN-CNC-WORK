@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { can, requireUser } from "@/lib/auth";
 import { listMillers } from "@/lib/queries";
+import { blobEnabled } from "@/lib/storage";
 import TaskForm from "@/components/TaskForm";
 
 export default async function NewTaskPage() {
@@ -13,7 +14,7 @@ export default async function NewTaskPage() {
       <p className="mb-5 text-sm text-ink-muted">
         Задача стане в кінець черги. Терміновим і позначеним «на початок» — місце зверху.
       </p>
-      <TaskForm me={me} millers={await listMillers()} />
+      <TaskForm me={me} millers={await listMillers()} directUpload={blobEnabled()} />
     </div>
   );
 }

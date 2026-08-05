@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { deleteTaskFile, uploadTaskFiles } from "@/lib/actions";
+import { attachUploadedBlobs, deleteTaskFile, uploadTaskFiles } from "@/lib/actions";
+import { uploadToBlob } from "./uploadToBlob";
 import type { TaskFile } from "@/lib/types";
 import { ACCEPT_ATTR, humanSize, isViewableModel } from "@/lib/storage-shared";
 import ModelViewer from "./ModelViewer";
@@ -21,9 +22,11 @@ interface Props {
   taskId: number;
   files: TaskFile[];
   canUpload: boolean;
+  /** У хмарі браузер вантажить файли напряму у сховище, минаючи сервер. */
+  directUpload: boolean;
 }
 
-export default function TaskFiles({ taskId, files, canUpload }: Props) {
+export default function TaskFiles({ taskId, files, canUpload, directUpload }: Props) {
   const router = useRouter();
   const { run, pending, error } = useAction();
   const [lightbox, setLightbox] = useState<TaskFile | null>(null);
@@ -34,8 +37,18 @@ export default function TaskFiles({ taskId, files, canUpload }: Props) {
 
   const upload = (list: FileList | null) => {
     if (!list?.length) return;
+    const chosen = Array.from(list);
+
+    if (directUpload) {
+      run(
+        async () => attachUploadedBlobs(taskId, await uploadToBlob(chosen, taskId)),
+        () => router.refresh()
+      );
+      return;
+    }
+
     const fd = new FormData();
-    Array.from(list).forEach((f) => fd.append("files", f));
+    chosen.forEach((f) => fd.append("files", f));
     run(
       () => uploadTaskFiles(taskId, fd),
       () => router.refresh()
