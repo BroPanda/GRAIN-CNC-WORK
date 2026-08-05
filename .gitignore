@@ -1,0 +1,17 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# Скріншоти з автотестів
+screens/
+
+# База даних та завантажені файли задач
+data/
+public/uploads/
+!public/uploads/.gitkeep
+
+.env*.local
+
+# локальні налаштування Claude Code (у кожного свої)
+.claude/settings.local.json

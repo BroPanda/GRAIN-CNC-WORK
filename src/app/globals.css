@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@theme {
+  /* Фірмові кольори GRAIN, зняті з логотипа */
+  --color-navy-950: #0b1a2b;
+  --color-navy-900: #0f2337;
+  --color-navy-850: #13293f;
+  --color-navy-800: #16324f;
+  --color-navy-700: #1d4066;
+  --color-navy-600: #2a5480;
+  --color-navy-500: #3d6f9f;
+
+  --color-gold-500: #f2a825;
+  --color-gold-400: #ffb93b;
+  --color-gold-300: #ffcd6e;
+
+  --color-ink: #eef4fa;
+  --color-ink-muted: #9db1c7;
+  --color-ink-dim: #6d84a0;
+
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-danger: #f87171;
+  --color-info: #60a5fa;
+
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Roboto", sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1b3d5e 0%, transparent 60%),
+      var(--color-navy-950);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+  }
+
+  /* Поля вводу від 16px, щоб iOS не зумив сторінку при фокусі */
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    font-size: max(1rem, 16px);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #23446a;
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-white/8 bg-navy-850/70 backdrop-blur-sm;
+  }
+
+  /* Кнопки: базовий клас .btn + модифікатор, напр. class="btn btn-primary" */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+      font-semibold transition select-none active:scale-[0.98]
+      disabled:pointer-events-none disabled:opacity-45;
+    min-height: 44px; /* комфортна цільова зона для пальця */
+  }
+  .btn-primary {
+    @apply bg-gold-500 text-navy-950 hover:bg-gold-400;
+  }
+  .btn-ghost {
+    @apply border border-white/12 bg-white/5 text-ink hover:bg-white/10;
+  }
+  .btn-danger {
+    @apply border border-danger/40 bg-danger/15 text-danger hover:bg-danger/25;
+  }
+  .btn-ok {
+    @apply bg-ok/90 text-navy-950 hover:bg-ok;
+  }
+  .btn-sm {
+    @apply rounded-lg px-3 py-1.5 text-sm;
+    min-height: 36px;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-white/12 bg-navy-950/60 px-3.5 py-2.5
+      text-ink placeholder:text-ink-dim outline-none transition
+      focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/20;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-semibold tracking-wide text-ink-muted uppercase;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .link {
+    @apply text-gold-400 underline-offset-2 hover:underline;
+  }
+}
+
+/* Плавне приховування скролбару в горизонтальних стрічках */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
