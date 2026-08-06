@@ -469,6 +469,35 @@ const browser = await chromium.launch();
   check("бюджет видно власнику", ownerSaw.length > 0, `${ownerSaw.length} місць`);
 }
 
+/* ─────── 6. Живе оновлення: чужа дія перемальовує чужий екран сама ─────── */
+{
+  const ownerCtx = await browser.newContext({ viewport: { width: 1440, height: 950 } });
+  const owner = await ownerCtx.newPage();
+  await loginAs(owner, "Світлана");
+  await owner.goto(`${BASE}/queue`, { waitUntil: "networkidle" });
+  const before = ((await owner.locator("body").textContent()) ?? "").match(/В роботі/g)?.length ?? 0;
+
+  // інша людина в іншому вікні бере задачу в роботу
+  const millerCtx = await browser.newContext({ viewport: { width: 1440, height: 950 } });
+  const miller = await millerCtx.newPage();
+  await loginAs(miller, "Володя");
+  const free = miller.locator("article").filter({ hasText: "C-102" }).first();
+  await free.getByRole("button", { name: /Взяти в роботу/ }).click();
+  await miller.waitForTimeout(2500);
+
+  // сторінку власника не чіпаємо взагалі — чекаємо цикл опитування
+  await owner.waitForTimeout(20000);
+  const after = ((await owner.locator("body").textContent()) ?? "").match(/В роботі/g)?.length ?? 0;
+  check(
+    "чужа дія оновила екран без перезавантаження",
+    after > before,
+    `${before} → ${after}`
+  );
+
+  await ownerCtx.close();
+  await millerCtx.close();
+}
+
 await browser.close();
 
 console.log(`\n${failures === 0 ? "ВСІ ПЕРЕВІРКИ ПРОЙДЕНІ" : `ПРОВАЛЕНО: ${failures}`}`);

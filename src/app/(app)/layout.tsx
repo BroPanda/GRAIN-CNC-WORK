@@ -6,7 +6,7 @@ import { unreadCount } from "@/lib/queries";
 import { ROLE_LABELS } from "@/lib/types";
 import { logout } from "@/lib/actions";
 import NavLink from "@/components/NavLink";
-import NotificationWatcher from "@/components/NotificationWatcher";
+import LiveUpdates from "@/components/LiveUpdates";
 import {
   IconArchive,
   IconBell,
@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[1600px]">
-      <NotificationWatcher userId={user.id} />
+      <LiveUpdates userId={user.id} />
       {/* ── Сайдбар (десктоп) ───────────────────────────────── */}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-2 border-r border-white/8 p-4 lg:flex">
         <Link href="/queue" className="mb-4 flex items-center gap-3 px-1">
