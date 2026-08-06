@@ -360,6 +360,14 @@ const browser = await chromium.launch();
     "статистика: широкий період показує виконану задачу",
     ((await page.locator("body").textContent()) ?? "").includes("SPA")
   );
+  check(
+    "статистика: гроші видно власнику",
+    ((await page.locator("body").textContent()) ?? "").includes("₴")
+  );
+  check(
+    "статистика: розбивка по днях",
+    ((await page.locator("body").textContent()) ?? "").includes("По днях")
+  );
   await shot(page, "12-desktop-stats");
 
   // Команда і права
@@ -430,6 +438,35 @@ const browser = await chromium.launch();
   check("новому оператору доступна спільна черга", seen.includes("C-102"));
   check("чужа закріплена задача (C-104) від нього прихована", !seen.includes("C-104"));
   await ctx.close();
+}
+
+/* ─────────── 5. Бюджет: суми не течуть тим, кому їх бачити не можна ─────────── */
+{
+  // суми з seed-demo.mjs; шукаємо їх у сирому HTML, а не на екрані —
+  // сховане поле все одно приїхало б у браузер разом з даними задачі
+  const AMOUNTS = ["18400", "4200", "26500", "31000", "9800", "12500"];
+  const PAGES = ["/queue", "/tasks/1", "/tasks/1/edit", "/archive", "/stats"];
+
+  const sniff = async (who) => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 } });
+    const page = await ctx.newPage();
+    await loginAs(page, who);
+    const hits = [];
+    for (const url of PAGES) {
+      const res = await page.goto(`${BASE}${url}`, { waitUntil: "networkidle" });
+      if (!res || res.status() >= 400) continue;
+      const html = await page.content();
+      for (const sum of AMOUNTS) if (html.includes(sum)) hits.push(`${url}:${sum}`);
+    }
+    await ctx.close();
+    return hits;
+  };
+
+  const millerSaw = await sniff("Володя");
+  check("бюджет не потрапляє фрезерувальнику", millerSaw.length === 0, millerSaw.join(", "));
+
+  const ownerSaw = await sniff("Світлана");
+  check("бюджет видно власнику", ownerSaw.length > 0, `${ownerSaw.length} місць`);
 }
 
 await browser.close();

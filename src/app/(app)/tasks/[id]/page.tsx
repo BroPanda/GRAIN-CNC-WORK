@@ -16,6 +16,7 @@ import {
   dueMeta,
   formatDateTime,
   formatDueDate,
+  formatMoney,
   relativeTime,
 } from "@/lib/format";
 import TaskActions from "@/components/TaskActions";
@@ -43,7 +44,7 @@ const EVENT_TONE: Record<string, string> = {
 export default async function TaskPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireUser();
   const { id } = await params;
-  const task = await getTask(Number(id));
+  const task = await getTask(me, Number(id));
   if (!task || !canSeeTask(me, task)) notFound();
 
   const abilities = abilitiesFor(me);
@@ -63,6 +64,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
     ["№ замовлення", task.order_no || "—"],
     ["Термін", task.due_date ? formatDueDate(task.due_date) : "—"],
   ];
+
+  // поля просто немає в даних, якщо права бачити бюджет немає
+  if (task.budget_uah != null) {
+    specs.push(["Бюджет", formatMoney(task.budget_uah)]);
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl">

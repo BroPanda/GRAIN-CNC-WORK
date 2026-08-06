@@ -112,8 +112,9 @@ export async function createTask(fd: FormData): Promise<ActionResult> {
 
     const taskId = await insertReturningId(
       `INSERT INTO tasks (code, title, description, customer, order_no, material,
-         thickness_mm, quantity, priority, due_date, assignee_id, queue_pos, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         thickness_mm, quantity, budget_uah, priority, due_date, assignee_id,
+         queue_pos, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       await nextCode(),
       title,
       str(fd, "description"),
@@ -122,6 +123,8 @@ export async function createTask(fd: FormData): Promise<ActionResult> {
       str(fd, "material"),
       numOrNull(fd, "thickness_mm"),
       Math.max(1, Number(str(fd, "quantity") || "1") || 1),
+      // суму приймаємо лише від того, кому взагалі можна її бачити
+      can(user, "can_see_budget") ? numOrNull(fd, "budget_uah") : null,
       priority === "urgent" ? "urgent" : "normal",
       str(fd, "due_date") || null,
       assigneeId,
@@ -167,10 +170,14 @@ export async function updateTask(taskId: number, fd: FormData): Promise<ActionRe
     const assigneeRaw = str(fd, "assignee_id");
     const assigneeId = assigneeRaw ? Number(assigneeRaw) : null;
 
+    // без права на бюджет колонку не чіпаємо взагалі — інакше правка задачі
+    // моделювальником затерла б суму в порожнечу
+    const editsBudget = can(user, "can_see_budget");
+
     await run(
       `UPDATE tasks SET title = ?, description = ?, customer = ?, order_no = ?,
          material = ?, thickness_mm = ?, quantity = ?, priority = ?, due_date = ?,
-         assignee_id = ?, updated_at = now()
+         assignee_id = ?${editsBudget ? ", budget_uah = ?" : ""}, updated_at = now()
        WHERE id = ?`,
       title,
       str(fd, "description"),
@@ -182,6 +189,7 @@ export async function updateTask(taskId: number, fd: FormData): Promise<ActionRe
       str(fd, "priority") === "urgent" ? "urgent" : "normal",
       str(fd, "due_date") || null,
       assigneeId,
+      ...(editsBudget ? [numOrNull(fd, "budget_uah")] : []),
       taskId
     );
 

@@ -30,9 +30,11 @@ interface Props {
   task?: Task;
   /** У хмарі браузер вантажить файли напряму у сховище, минаючи сервер. */
   directUpload: boolean;
+  /** Чи показувати поле бюджету (право `can_see_budget`). */
+  canSeeBudget: boolean;
 }
 
-export default function TaskForm({ me, millers, task, directUpload }: Props) {
+export default function TaskForm({ me, millers, task, directUpload, canSeeBudget }: Props) {
   const router = useRouter();
   const { run, pending, error } = useAction();
   const formRef = useRef<HTMLFormElement>(null);
@@ -141,6 +143,25 @@ export default function TaskForm({ me, millers, task, directUpload }: Props) {
             />
           </div>
         </div>
+
+        {canSeeBudget && (
+          <div className="mt-3">
+            <label className="label" htmlFor="budget_uah">
+              Бюджет, ₴
+            </label>
+            <input
+              id="budget_uah"
+              name="budget_uah"
+              className="field"
+              inputMode="decimal"
+              defaultValue={task?.budget_uah ?? ""}
+              placeholder="12500"
+            />
+            <p className="mt-1 text-xs text-ink-dim">
+              Бачите тільки ви й ті, кому увімкнено право «Бачити бюджет».
+            </p>
+          </div>
+        )}
 
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div>

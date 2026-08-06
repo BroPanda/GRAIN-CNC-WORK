@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { doneByMonth, doneInRange, doneSummary, listDoneInRange } from "@/lib/queries";
-import { formatExact, plural } from "@/lib/format";
+import {
+  type DonePeriod,
+  doneByDay,
+  doneByMonth,
+  doneInRange,
+  doneSummary,
+  listDoneInRange,
+} from "@/lib/queries";
+import { formatExact, formatMoney, plural } from "@/lib/format";
 import TaskCard from "@/components/TaskCard";
 
 const MONTHS = [
@@ -12,6 +19,15 @@ const MONTHS = [
 function monthLabel(key: string): string {
   const [year, month] = key.split("-");
   return `${MONTHS[Number(month) - 1]} ${year}`;
+}
+
+/** «2026-08-06» → «06.08, ср». */
+function dayLabel(key: string): string {
+  const [year, month, day] = key.split("-").map(Number);
+  const weekday = new Date(year, month - 1, day).toLocaleDateString("uk-UA", {
+    weekday: "short",
+  });
+  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}, ${weekday}`;
 }
 
 /** Київська «сьогодні» — щоб форма за замовчуванням показувала поточний місяць. */
@@ -41,15 +57,16 @@ export default async function StatsPage({
   const from = params.from || iso(monthStart);
   const to = params.to || iso(today);
 
-  const [summary, months, range, tasks] = await Promise.all([
+  const [summary, months, days, range, tasks] = await Promise.all([
     doneSummary(me),
     doneByMonth(me),
+    doneByDay(me, from, to),
     doneInRange(me, from, to),
     listDoneInRange(me, from, to),
   ]);
 
   const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const cards: [string, number, string][] = [
+  const cards: [string, DonePeriod, string][] = [
     ["Сьогодні", summary.today, "з початку доби"],
     ["Цей тиждень", summary.week, "з понеділка"],
     ["Цей місяць", summary.month, monthLabel(monthKey(monthStart))],
@@ -57,6 +74,7 @@ export default async function StatsPage({
   ];
 
   const peak = Math.max(1, ...months.map((m) => m.n));
+  const dayPeak = Math.max(1, ...days.map((d) => d.n));
   const works = (n: number) => plural(n, ["робота", "роботи", "робіт"]);
 
   return (
@@ -73,7 +91,10 @@ export default async function StatsPage({
         {cards.map(([label, value, hint]) => (
           <div key={label} className="card p-4">
             <div className="text-xs tracking-wide text-ink-dim uppercase">{label}</div>
-            <div className="text-3xl font-bold text-gold-400">{value}</div>
+            <div className="text-3xl font-bold text-gold-400">{value.n}</div>
+            {value.money !== null && (
+              <div className="text-sm font-bold text-ok">{formatMoney(value.money)}</div>
+            )}
             <div className="text-xs text-ink-dim">{hint}</div>
           </div>
         ))}
@@ -97,6 +118,12 @@ export default async function StatsPage({
         <p className="mt-4 text-sm">
           Виконано <span className="text-xl font-bold text-gold-400">{range.total}</span>{" "}
           {works(range.total)}
+          {range.money !== null && (
+            <>
+              {" · на "}
+              <span className="text-xl font-bold text-ok">{formatMoney(range.money)}</span>
+            </>
+          )}
         </p>
 
         {range.byWorker.length > 1 && (
@@ -107,6 +134,39 @@ export default async function StatsPage({
                 className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-sm"
               >
                 {w.name ?? "без виконавця"}: <span className="font-bold">{w.n}</span>
+                {w.money !== null && (
+                  <span className="text-ok"> · {formatMoney(w.money)}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* По днях за вибраний період */}
+      <section className="card mb-6 p-4">
+        <h2 className="label">По днях</h2>
+        {!days.length ? (
+          <p className="text-sm text-ink-muted">За цей період робіт не здавали.</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {days.map((d) => (
+              <li key={d.key} className="flex items-center gap-3">
+                <span className="w-32 shrink-0 font-mono text-sm text-ink-muted">
+                  {dayLabel(d.key)}
+                </span>
+                <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                  <span
+                    className="block h-full rounded-full bg-info"
+                    style={{ width: `${Math.round((d.n / dayPeak) * 100)}%` }}
+                  />
+                </span>
+                {d.money !== null && (
+                  <span className="w-28 shrink-0 text-right text-sm text-ok">
+                    {formatMoney(d.money)}
+                  </span>
+                )}
+                <span className="w-8 shrink-0 text-right text-sm font-bold">{d.n}</span>
               </li>
             ))}
           </ul>
@@ -121,9 +181,9 @@ export default async function StatsPage({
         ) : (
           <ul className="flex flex-col gap-1.5">
             {months.map((m) => (
-              <li key={m.month} className="flex items-center gap-3">
+              <li key={m.key} className="flex items-center gap-3">
                 <span className="w-32 shrink-0 text-sm text-ink-muted">
-                  {monthLabel(m.month)}
+                  {monthLabel(m.key)}
                 </span>
                 <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/5">
                   <span
@@ -131,6 +191,11 @@ export default async function StatsPage({
                     style={{ width: `${Math.round((m.n / peak) * 100)}%` }}
                   />
                 </span>
+                {m.money !== null && (
+                  <span className="w-28 shrink-0 text-right text-sm text-ok">
+                    {formatMoney(m.money)}
+                  </span>
+                )}
                 <span className="w-8 shrink-0 text-right text-sm font-bold">{m.n}</span>
               </li>
             ))}

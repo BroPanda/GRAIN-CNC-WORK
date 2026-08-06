@@ -29,6 +29,7 @@ const tasks = [
     due: 0,
     status: "in_progress",
     worker: MILLER,
+    budget: 18400,
   },
   {
     code: "C-102",
@@ -42,6 +43,7 @@ const tasks = [
     priority: "normal",
     due: 2,
     status: "queued",
+    budget: 4200,
   },
   {
     code: "C-103",
@@ -56,6 +58,7 @@ const tasks = [
     due: 5,
     status: "queued",
     model: true,
+    budget: 26500,
   },
   {
     code: "C-104",
@@ -70,6 +73,7 @@ const tasks = [
     due: 8,
     status: "queued",
     assignee: MILLER,
+    budget: 31000,
   },
   {
     code: "C-105",
@@ -83,6 +87,7 @@ const tasks = [
     priority: "normal",
     due: -1,
     status: "rework",
+    budget: 9800,
     reworkReason:
       "У файлі відкриті контури по літерах Т і А — програма не рахує замкнутий шлях. Треба перезбирати вектор.",
   },
@@ -99,6 +104,7 @@ const tasks = [
     due: -6,
     status: "done",
     worker: MILLER,
+    budget: 12500,
   },
 ];
 
@@ -155,9 +161,9 @@ for (const [i, t] of tasks.entries()) {
 
   const { rows } = await client.query(
     `INSERT INTO tasks (code, title, description, customer, order_no, material, thickness_mm,
-       quantity, priority, due_date, status, assignee_id, worker_id, queue_pos, created_by,
-       started_at, finished_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+       quantity, budget_uah, priority, due_date, status, assignee_id, worker_id, queue_pos,
+       created_by, started_at, finished_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
        ${started ? "now()" : "NULL"}, ${closed ? "now()" : "NULL"})
      RETURNING id`,
     [
@@ -169,6 +175,7 @@ for (const [i, t] of tasks.entries()) {
       t.material,
       t.thickness_mm,
       t.quantity,
+      t.budget ?? null,
       t.priority,
       shift(t.due),
       t.status,

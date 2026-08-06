@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { TaskListItem } from "@/lib/types";
 import { STATUS_LABELS } from "@/lib/types";
-import { PRIORITY_STYLE, STATUS_STYLE, dueMeta, specLine } from "@/lib/format";
+import { PRIORITY_STYLE, STATUS_STYLE, dueMeta, formatMoney, specLine } from "@/lib/format";
 import { IconCube, IconImage, IconPaperclip } from "@/components/Icons";
 
 const DUE_TONE = {
@@ -85,6 +85,12 @@ export default function TaskCard({ task, index, actions }: Props) {
                   {task.assignee_name && (
                     <span className="chip bg-gold-500/12 text-gold-300 ring-1 ring-gold-500/25">
                       Закріплено: {task.assignee_name}
+                    </span>
+                  )}
+                  {/* поля немає в даних у тих, кому бюджет бачити не можна */}
+                  {task.budget_uah != null && (
+                    <span className="chip bg-ok/12 text-ok ring-1 ring-ok/25">
+                      {formatMoney(task.budget_uah)}
                     </span>
                   )}
                 </div>

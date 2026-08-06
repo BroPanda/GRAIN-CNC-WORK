@@ -10,6 +10,8 @@ import { Pool, types } from "pg";
 types.setTypeParser(1114, (v) => new Date(`${v}Z`).toISOString()); // timestamp
 types.setTypeParser(1184, (v) => new Date(v).toISOString()); // timestamptz
 types.setTypeParser(1082, (v) => v); // date → "2026-08-12"
+// numeric драйвер віддає рядком (щоб не втратити точність) — нам потрібне число
+types.setTypeParser(1700, (v) => (v === null ? null : Number(v)));
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -27,6 +29,8 @@ CREATE TABLE IF NOT EXISTS users (
   can_take_tasks    INTEGER NOT NULL DEFAULT 0,
   can_close_tasks   INTEGER NOT NULL DEFAULT 0,
   can_manage_team   INTEGER NOT NULL DEFAULT 0,
+  -- гроші: за замовчуванням не бачить ніхто, крім власника
+  can_see_budget    INTEGER NOT NULL DEFAULT 0,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -40,6 +44,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   material     TEXT    NOT NULL DEFAULT '',
   thickness_mm DOUBLE PRECISION,
   quantity     INTEGER NOT NULL DEFAULT 1,
+  -- бюджет у гривнях; NULL = не вказано. Видно лише з правом can_see_budget
+  budget_uah   NUMERIC(12,2),
   priority     TEXT    NOT NULL DEFAULT 'normal' CHECK (priority IN ('normal','urgent')),
   due_date     DATE,
   status       TEXT    NOT NULL DEFAULT 'queued'
@@ -98,6 +104,16 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read_at, id);
 `;
 
+/**
+ * Оновлення для баз, створених раніше: SCHEMA вище застосовується лише коли
+ * таблиць ще немає, тому нові колонки треба додавати окремо. Усі команди
+ * безпечні для повторного запуску.
+ */
+const MIGRATIONS = `
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS budget_uah NUMERIC(12,2);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS can_see_budget INTEGER NOT NULL DEFAULT 0;
+`;
+
 /** Початкова команда GRAIN — створюється, якщо таблиця користувачів порожня. */
 const SEED_TEAM = `
 INSERT INTO users (name, role, job_title, can_create_tasks, can_edit_tasks,
@@ -150,6 +166,7 @@ function ensureSchema(): Promise<void> {
       await client.query("SELECT pg_advisory_lock(727001)");
       try {
         await client.query(SCHEMA);
+        await client.query(MIGRATIONS);
         await client.query(SEED_TEAM);
       } finally {
         await client.query("SELECT pg_advisory_unlock(727001)");

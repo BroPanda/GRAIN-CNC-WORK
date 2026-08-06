@@ -11,6 +11,7 @@ export const PERMISSION_KEYS = [
   "can_take_tasks",
   "can_close_tasks",
   "can_manage_team",
+  "can_see_budget",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -23,6 +24,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   can_take_tasks: "Брати задачі в роботу",
   can_close_tasks: "Закривати задачі",
   can_manage_team: "Керувати командою",
+  can_see_budget: "Бачити бюджет",
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -54,6 +56,7 @@ export interface User {
   can_take_tasks: number;
   can_close_tasks: number;
   can_manage_team: number;
+  can_see_budget: number;
   created_at: string;
 }
 
@@ -67,6 +70,11 @@ export interface Task {
   material: string;
   thickness_mm: number | null;
   quantity: number;
+  /**
+   * Бюджет у гривнях. Поля може не бути зовсім: запит додає його лише тим,
+   * хто має право `can_see_budget` — див. taskSelect() у queries.ts.
+   */
+  budget_uah?: number | null;
   priority: Priority;
   due_date: string | null;
   status: Status;

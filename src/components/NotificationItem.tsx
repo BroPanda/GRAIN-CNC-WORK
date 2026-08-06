@@ -48,7 +48,11 @@ export default function NotificationItem({ item }: { item: Notification }) {
         </p>
         <span className="shrink-0 text-right text-[11px] whitespace-nowrap text-ink-dim">
           <span className="block font-mono">{formatExact(item.created_at)}</span>
-          <span className="block opacity-70">{relativeTime(item.created_at)}</span>
+          {/* «щойно» на сервері може стати «1 хв тому» вже в браузері —
+              для відносного часу розбіжність нормальна */}
+          <span className="block opacity-70" suppressHydrationWarning>
+            {relativeTime(item.created_at)}
+          </span>
         </span>
         {!item.read_at && (
           <button

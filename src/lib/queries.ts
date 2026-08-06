@@ -1,3 +1,4 @@
+import { can } from "./auth";
 import { count, queryAll, queryOne } from "./db";
 import { NOTIF_GROUPS, type NotifGroup, bucketForType, groupFilter } from "./notif-groups";
 import type {
@@ -10,8 +11,23 @@ import type {
   User,
 } from "./types";
 
-const TASK_SELECT = `
-  SELECT t.*,
+/**
+ * Колонки задачі, які можна показувати будь-кому. Перелічені явно, а не через
+ * `t.*`, свідомо: дані задачі летять у компоненти, що виконуються в браузері,
+ * тож нове чутливе поле не має потрапляти туди саме собою. `budget_uah` тут
+ * немає — його додає taskSelect() лише тим, хто має право.
+ */
+const TASK_COLUMNS = [
+  "id", "code", "title", "description", "customer", "order_no", "material",
+  "thickness_mm", "quantity", "priority", "due_date", "status", "assignee_id",
+  "worker_id", "queue_pos", "created_by", "created_at", "updated_at",
+  "started_at", "finished_at",
+]
+  .map((c) => `t.${c}`)
+  .join(", ");
+
+const taskSelect = (viewer: User) => `
+  SELECT ${TASK_COLUMNS}${can(viewer, "can_see_budget") ? ", t.budget_uah" : ""},
     a.name AS assignee_name,
     w.name AS worker_name,
     c.name AS author_name,
@@ -55,7 +71,7 @@ export function getUser(id: number): Promise<User | null> {
 export function listTasks(viewer: User, statuses: Status[]): Promise<TaskListItem[]> {
   const placeholders = statuses.map(() => "?").join(",");
   const restrictToViewer = viewer.role === "miller";
-  const sql = `${TASK_SELECT}
+  const sql = `${taskSelect(viewer)}
     WHERE t.status IN (${placeholders})
     ${restrictToViewer ? "AND (t.assignee_id IS NULL OR t.assignee_id = ?)" : ""}
     ORDER BY t.queue_pos ASC, t.id ASC`;
@@ -68,7 +84,7 @@ export function listArchive(viewer: User, search: string): Promise<TaskListItem[
   const restrictToViewer = viewer.role === "miller";
   const term = search.trim();
   const like = `%${term}%`;
-  const sql = `${TASK_SELECT}
+  const sql = `${taskSelect(viewer)}
     WHERE t.status IN ('done','cancelled')
     ${restrictToViewer ? "AND (t.assignee_id IS NULL OR t.assignee_id = ? OR t.worker_id = ?)" : ""}
     ${term ? "AND (t.title ILIKE ? OR t.customer ILIKE ? OR t.order_no ILIKE ? OR t.code ILIKE ?)" : ""}
@@ -80,10 +96,14 @@ export function listArchive(viewer: User, search: string): Promise<TaskListItem[
   return queryAll<TaskListItem>(sql, ...params);
 }
 
-export function getTask(id: number): Promise<TaskListItem | null> {
-  return queryOne<TaskListItem>(`${TASK_SELECT} WHERE t.id = ?`, id);
+export function getTask(viewer: User, id: number): Promise<TaskListItem | null> {
+  return queryOne<TaskListItem>(`${taskSelect(viewer)} WHERE t.id = ?`, id);
 }
 
+/**
+ * Задача з усіма колонками, включно з бюджетом. Тільки для серверних перевірок
+ * прав — назовні (у браузер) її віддавати не можна, для цього є getTask().
+ */
 export function getTaskRaw(id: number): Promise<Task | null> {
   return queryOne<Task>("SELECT * FROM tasks WHERE id = ?", id);
 }
@@ -201,27 +221,38 @@ function doneScope(viewer: User): { sql: string; params: number[] } {
     : { sql: "", params: [] };
 }
 
+/** Кількість і гроші за період. `money` — null, якщо права бачити суми немає. */
+export interface DonePeriod {
+  n: number;
+  money: number | null;
+}
+
 export interface DoneSummary {
-  today: number;
-  week: number;
-  month: number;
-  prevMonth: number;
+  today: DonePeriod;
+  week: DonePeriod;
+  month: DonePeriod;
+  prevMonth: DonePeriod;
 }
 
 export async function doneSummary(viewer: User): Promise<DoneSummary> {
   const scope = doneScope(viewer);
-  const n = (where: string) =>
-    count(`SELECT COUNT(*)::int AS n FROM tasks WHERE ${DONE} AND ${where}${scope.sql}`, ...scope.params);
+  const withMoney = can(viewer, "can_see_budget");
+
+  const period = async (where: string): Promise<DonePeriod> => {
+    const row = await queryOne<{ n: number; money: number | null }>(
+      `SELECT COUNT(*)::int AS n,
+              ${withMoney ? "COALESCE(SUM(budget_uah), 0)" : "NULL"} AS money
+       FROM tasks WHERE ${DONE} AND ${where}${scope.sql}`,
+      ...scope.params
+    );
+    return { n: row?.n ?? 0, money: withMoney ? (row?.money ?? 0) : null };
+  };
 
   const [today, week, month, prevMonth] = await Promise.all([
-    n(`(finished_at ${KYIV})::date = (now() ${KYIV})::date`),
-    n(
-      `date_trunc('week', finished_at ${KYIV}) = date_trunc('week', now() ${KYIV})`
-    ),
-    n(
-      `date_trunc('month', finished_at ${KYIV}) = date_trunc('month', now() ${KYIV})`
-    ),
-    n(
+    period(`(finished_at ${KYIV})::date = (now() ${KYIV})::date`),
+    period(`date_trunc('week', finished_at ${KYIV}) = date_trunc('week', now() ${KYIV})`),
+    period(`date_trunc('month', finished_at ${KYIV}) = date_trunc('month', now() ${KYIV})`),
+    period(
       `date_trunc('month', finished_at ${KYIV})
        = date_trunc('month', (now() ${KYIV}) - interval '1 month')`
     ),
@@ -230,17 +261,24 @@ export async function doneSummary(viewer: User): Promise<DoneSummary> {
   return { today, week, month, prevMonth };
 }
 
-export interface MonthCount {
-  month: string; // "2026-08"
+export interface PeriodCount {
+  /** «2026-08» для місяця, «2026-08-06» для дня. */
+  key: string;
   n: number;
+  money: number | null;
 }
 
+/** Скільки грошей рахувати — або NULL, якщо права немає. */
+const moneySum = (allowed: boolean) =>
+  allowed ? "COALESCE(SUM(budget_uah), 0)" : "NULL";
+
 /** Помісячно за останній рік — щоб було видно, як іде рік. */
-export function doneByMonth(viewer: User, months = 12): Promise<MonthCount[]> {
+export function doneByMonth(viewer: User, months = 12): Promise<PeriodCount[]> {
   const scope = doneScope(viewer);
-  return queryAll<MonthCount>(
-    `SELECT to_char(date_trunc('month', finished_at ${KYIV}), 'YYYY-MM') AS month,
-            COUNT(*)::int AS n
+  return queryAll<PeriodCount>(
+    `SELECT to_char(date_trunc('month', finished_at ${KYIV}), 'YYYY-MM') AS key,
+            COUNT(*)::int AS n,
+            ${moneySum(can(viewer, "can_see_budget"))} AS money
      FROM tasks
      WHERE ${DONE}
        AND finished_at >= date_trunc('month', (now() ${KYIV}) - make_interval(months => ?))
@@ -251,9 +289,28 @@ export function doneByMonth(viewer: User, months = 12): Promise<MonthCount[]> {
   );
 }
 
+/** По днях за вибраний період — дні без робіт просто відсутні. */
+export function doneByDay(viewer: User, from: string, to: string): Promise<PeriodCount[]> {
+  const scope = doneScope(viewer);
+  return queryAll<PeriodCount>(
+    `SELECT to_char((finished_at ${KYIV})::date, 'YYYY-MM-DD') AS key,
+            COUNT(*)::int AS n,
+            ${moneySum(can(viewer, "can_see_budget"))} AS money
+     FROM tasks
+     WHERE ${DONE}
+       AND (finished_at ${KYIV})::date BETWEEN ?::date AND ?::date
+       ${scope.sql}
+     GROUP BY 1 ORDER BY 1 DESC`,
+    from,
+    to,
+    ...scope.params
+  );
+}
+
 export interface RangeStats {
   total: number;
-  byWorker: { name: string | null; n: number }[];
+  money: number | null;
+  byWorker: { name: string | null; n: number; money: number | null }[];
 }
 
 /** Довільний період: «скільки здали з 1 по 15 серпня». Межі включно. */
@@ -267,15 +324,18 @@ export async function doneInRange(
   const mine = viewer.role === "miller" ? " AND t.worker_id = ?" : "";
   const where = `t.status = 'done' AND t.finished_at IS NOT NULL AND ${period}${mine}`;
 
-  const [total, byWorker] = await Promise.all([
-    count(
-      `SELECT COUNT(*)::int AS n FROM tasks t WHERE ${where}`,
+  const withMoney = can(viewer, "can_see_budget");
+  const sum = withMoney ? "COALESCE(SUM(t.budget_uah), 0)" : "NULL";
+
+  const [totals, byWorker] = await Promise.all([
+    queryOne<{ n: number; money: number | null }>(
+      `SELECT COUNT(*)::int AS n, ${sum} AS money FROM tasks t WHERE ${where}`,
       from,
       to,
       ...scope.params
     ),
-    queryAll<{ name: string | null; n: number }>(
-      `SELECT u.name AS name, COUNT(*)::int AS n
+    queryAll<{ name: string | null; n: number; money: number | null }>(
+      `SELECT u.name AS name, COUNT(*)::int AS n, ${sum} AS money
        FROM tasks t LEFT JOIN users u ON u.id = t.worker_id
        WHERE ${where}
        GROUP BY u.name ORDER BY n DESC`,
@@ -285,7 +345,11 @@ export async function doneInRange(
     ),
   ]);
 
-  return { total, byWorker };
+  return {
+    total: totals?.n ?? 0,
+    money: withMoney ? (totals?.money ?? 0) : null,
+    byWorker,
+  };
 }
 
 /** Виконані задачі за період — списком, щоб можна було звірити руками. */
@@ -293,7 +357,7 @@ export function listDoneInRange(viewer: User, from: string, to: string): Promise
   const scope = doneScope(viewer);
   const mine = viewer.role === "miller" ? " AND t.worker_id = ?" : "";
   return queryAll<TaskListItem>(
-    `${TASK_SELECT}
+    `${taskSelect(viewer)}
      WHERE t.status = 'done' AND t.finished_at IS NOT NULL
        AND (t.finished_at ${KYIV})::date BETWEEN ?::date AND ?::date${mine}
      ORDER BY t.finished_at DESC LIMIT 200`,

@@ -22,6 +22,15 @@ export function plural(n: number, forms: [string, string, string]): string {
   return forms[2];
 }
 
+/** Гроші: «12 500 ₴». Копійки показуємо лише коли вони справді є. */
+export function formatMoney(value: number): string {
+  const whole = Number.isInteger(value);
+  return `${value.toLocaleString("uk-UA", {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  })} ₴`;
+}
+
 /** Повна дата з точним часом: «05.08.2026, 19:29». */
 export function formatExact(value: string): string {
   return parseUtc(value).toLocaleString("uk-UA", {
