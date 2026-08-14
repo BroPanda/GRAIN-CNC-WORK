@@ -30,6 +30,7 @@ export default function TaskFiles({ taskId, files, canUpload, directUpload }: Pr
   const router = useRouter();
   const { run, pending, error } = useAction();
   const [lightbox, setLightbox] = useState<TaskFile | null>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   const images = files.filter((f) => f.kind === "image");
   const models = files.filter((f) => f.kind === "model" && isViewableModel(f.ext));
@@ -169,9 +170,38 @@ export default function TaskFiles({ taskId, files, canUpload, directUpload }: Pr
       )}
 
       {canUpload && (
-        <label className="btn btn-ghost cursor-pointer">
-          <IconCube className="h-4 w-4" />
-          {pending ? "Завантаження…" : "Додати фото / 3D / креслення"}
+        // зона приймає і перетягування, і звичайний вибір: кількома файлами
+        // різного типу за раз, розкладе їх сервер
+        <label
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (!pending) upload(e.dataTransfer.files);
+          }}
+          className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border border-dashed px-4 py-5 text-center transition ${
+            dragOver
+              ? "border-gold-500 bg-gold-500/10"
+              : "border-white/20 bg-white/[0.02] hover:border-gold-500/50 hover:bg-gold-500/5"
+          }`}
+        >
+          <span className="flex gap-3 text-ink-dim">
+            <IconImage className="h-5 w-5" />
+            <IconCube className="h-5 w-5" />
+            <IconPaperclip className="h-5 w-5" />
+          </span>
+          <span className="font-semibold">
+            {pending
+              ? "Завантаження…"
+              : dragOver
+                ? "Відпустіть — заберемо"
+                : "Перетягніть сюди або виберіть"}
+          </span>
+          <span className="text-xs text-ink-dim">фото, 3D-моделі, креслення · до 60 МБ на файл</span>
           <input
             type="file"
             multiple

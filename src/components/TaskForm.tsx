@@ -37,6 +37,7 @@ export default function TaskForm({
   const { run, pending, error } = useAction();
   const formRef = useRef<HTMLFormElement>(null);
   const [picked, setPicked] = useState<File[]>([]);
+  const [dragOver, setDragOver] = useState(false);
 
   const editing = !!task;
 
@@ -244,13 +245,33 @@ export default function TaskForm({
       {/* Файли */}
       <div className="card p-4">
         <div className="label">Фото, 3D-моделі та креслення</div>
-        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/[0.02] px-4 py-6 text-center transition hover:border-gold-500/50 hover:bg-gold-500/5">
+        {/* та сама зона працює і на перетягування: у неї можна кинути
+            одразу купу файлів різного типу — розкладе їх сам сервер */}
+        <label
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            onFiles(e.dataTransfer.files);
+          }}
+          className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center transition ${
+            dragOver
+              ? "border-gold-500 bg-gold-500/10"
+              : "border-white/20 bg-white/[0.02] hover:border-gold-500/50 hover:bg-gold-500/5"
+          }`}
+        >
           <span className="flex gap-3 text-ink-dim">
             <IconImage className="h-6 w-6" />
             <IconCube className="h-6 w-6" />
             <IconPaperclip className="h-6 w-6" />
           </span>
-          <span className="font-semibold">Вибрати файли</span>
+          <span className="font-semibold">
+            {dragOver ? "Відпустіть — заберемо" : "Перетягніть сюди або виберіть"}
+          </span>
           <span className="text-xs text-ink-dim">
             STL, OBJ, 3MF, GLB — з переглядом у браузері · STEP, DXF, AI, CDR, PDF, G-code — на
             завантаження · до 60 МБ на файл
