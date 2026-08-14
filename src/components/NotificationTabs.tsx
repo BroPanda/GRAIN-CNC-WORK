@@ -18,7 +18,7 @@ interface Props {
  */
 export default function NotificationTabs({ active, counts }: Props) {
   return (
-    <nav className="-mx-4 mb-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav className="-mx-3.5 overflow-x-auto px-3.5 pb-0.5 sm:mx-0 sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <ul className="flex w-max gap-1.5 sm:w-auto sm:flex-wrap">
         {NOTIF_GROUPS.map((group) => {
           const on = group === active;

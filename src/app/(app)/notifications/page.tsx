@@ -43,12 +43,17 @@ export default async function NotificationsPage({
 
       <NotifViewTabs active="list" />
 
-      {/* Підпис потрібен, бо кнопки схожі на ті, що в налаштуваннях, — а тут
-          вони лише показують потрібне, нічого не вмикаючи й не вимикаючи */}
-      <p className="mb-1.5 text-xs text-ink-dim">
-        Показати лише певні події. Цифра — скільки непрочитаних.
-      </p>
-      <NotificationTabs active={active} counts={counts} />
+      {/* Фільтр в окремій картці з підписом: кнопки схожі на перемикачі з
+          налаштувань, тож без пояснення читались як їхній дубль */}
+      <section className="card mb-5 p-3.5">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 className="text-sm font-bold">Показати</h2>
+          <p className="text-xs text-ink-dim">цифра — скільки непрочитаних</p>
+        </div>
+        <div className="border-t border-white/8 pt-2.5">
+          <NotificationTabs active={active} counts={counts} />
+        </div>
+      </section>
 
       {unreadHere > 0 && (
         <form
