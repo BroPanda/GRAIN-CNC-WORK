@@ -352,6 +352,61 @@ export async function doneInRange(
   };
 }
 
+/* --------------------------------------------------- очищення старих файлів */
+
+/**
+ * Закриті задачі, старші за вказану кількість місяців — саме їхні файли
+ * пропонуємо прибрати. Задача й уся статистика лишаються, зникає тільки
+ * важке: моделі, фото, креслення.
+ */
+export const PURGE_OLDER_THAN = "COALESCE(t.finished_at, t.updated_at)";
+
+const purgeWhere = `t.status IN ('done','cancelled')
+  AND ${PURGE_OLDER_THAN} < now() - (? || ' months')::interval`;
+
+export interface PurgePreview {
+  /** Скільки задач втратять файли. */
+  tasks: number;
+  files: number;
+  bytes: number;
+  /** Найсвіжіша дата серед задач, що потраплять під чистку. */
+  newest: string | null;
+}
+
+export async function purgePreview(months: number): Promise<PurgePreview> {
+  const row = await queryOne<{
+    tasks: number;
+    files: number;
+    bytes: number;
+    newest: string | null;
+  }>(
+    `SELECT COUNT(DISTINCT t.id)::int          AS tasks,
+            COUNT(f.id)::int                   AS files,
+            COALESCE(SUM(f.size_bytes), 0)::bigint AS bytes,
+            MAX(${PURGE_OLDER_THAN})           AS newest
+       FROM tasks t
+       JOIN task_files f ON f.task_id = t.id
+      WHERE ${purgeWhere}`,
+    months
+  );
+  return {
+    tasks: row?.tasks ?? 0,
+    files: row?.files ?? 0,
+    bytes: Number(row?.bytes ?? 0),
+    newest: row?.newest ?? null,
+  };
+}
+
+/** Самі файли під чистку — потрібні, щоб видалити їх ще й зі сховища. */
+export function filesToPurge(months: number): Promise<TaskFile[]> {
+  return queryAll<TaskFile>(
+    `SELECT f.* FROM task_files f
+       JOIN tasks t ON t.id = f.task_id
+      WHERE ${purgeWhere}`,
+    months
+  );
+}
+
 /** Виконані задачі за період — списком, щоб можна було звірити руками. */
 export function listDoneInRange(viewer: User, from: string, to: string): Promise<TaskListItem[]> {
   const scope = doneScope(viewer);

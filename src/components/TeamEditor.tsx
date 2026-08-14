@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { saveTeamMember, setUserActive, togglePermission } from "@/lib/actions";
+import { deleteUser, saveTeamMember, setUserActive, togglePermission } from "@/lib/actions";
 import {
   PERMISSION_KEYS,
   PERMISSION_LABELS,
@@ -14,7 +14,7 @@ import {
 import { formatPhone } from "@/lib/phone";
 import Dialog from "./Dialog";
 import { useAction } from "./useAction";
-import { IconPlus } from "./Icons";
+import { IconPlus, IconTrash } from "./Icons";
 
 const ROLES: Role[] = ["owner", "modeler", "miller"];
 
@@ -25,6 +25,8 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
   const router = useRouter();
   const { run, pending, error } = useAction();
   const [editing, setEditing] = useState<Editing>(null);
+  /** Кого саме питаємо видалити — видалення без підтвердження надто дешеве. */
+  const [removing, setRemoving] = useState<User | null>(null);
 
   const refresh = () => router.refresh();
 
@@ -121,6 +123,18 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
                       {user.is_active ? "Деактивувати" : "Активувати"}
                     </button>
                   )}
+                  {/* власника з інтерфейсу не видалити — лише через базу */}
+                  {user.id !== meId && !isOwner && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm !px-2 text-danger"
+                      aria-label={`Видалити ${user.name}`}
+                      disabled={pending}
+                      onClick={() => setRemoving(user)}
+                    >
+                      <IconTrash className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -155,6 +169,38 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
           );
         })}
       </div>
+
+      <Dialog
+        open={removing !== null}
+        title={`Видалити ${removing?.name ?? ""}?`}
+        onClose={() => setRemoving(null)}
+      >
+        <p className="mb-4 text-sm text-ink-muted">
+          Людина зникне з команди назавжди і більше не зайде в застосунок. Її задачі
+          нікуди не подінуться — лишаться без виконавця, історія й статистика цілі.
+          Якщо потрібно просто закрити доступ на час, краще{" "}
+          <span className="font-semibold text-ink">Деактивувати</span>.
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="btn btn-danger flex-1"
+            disabled={pending}
+            onClick={() =>
+              removing &&
+              run(() => deleteUser(removing.id), () => {
+                setRemoving(null);
+                refresh();
+              })
+            }
+          >
+            {pending ? "Видаляю…" : "Видалити"}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setRemoving(null)}>
+            Скасувати
+          </button>
+        </div>
+      </Dialog>
 
       <Dialog
         open={editing !== null}

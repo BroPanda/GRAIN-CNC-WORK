@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { count, insertReturningId, queryAll, queryOne, run, transaction } from "./db";
 import { assertCan, can, endSession, requireUser, startSession } from "./auth";
 import { botConfigured } from "./telegram";
-import { canSeeTask, getTaskRaw } from "./queries";
+import { canSeeTask, filesToPurge, getTaskRaw } from "./queries";
 import {
   type EventType,
   managementAudience,
@@ -24,6 +24,7 @@ import { deleteStoredFile, saveUploadedFile, statBlob } from "./storage";
 import { extOf, kindForExt } from "./storage-shared";
 import {
   PERMISSION_KEYS,
+  PURGE_MONTHS,
   type PermissionKey,
   type Priority,
   type Role,
@@ -682,6 +683,45 @@ export async function deleteTaskFile(fileId: number): Promise<ActionResult> {
   }
 }
 
+/**
+ * Прибирає файли закритих задач, старших за вказану кількість місяців.
+ * Самі задачі, історія і статистика лишаються недоторканими — зникає лише
+ * те, що займає місце у сховищі. Рішення за власником, автоматично нічого
+ * не чиститься.
+ */
+export async function purgeOldFiles(months: number): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    if (user.role !== "owner") throw new Error("Очищати архів може лише власник");
+    if (!(PURGE_MONTHS as readonly number[]).includes(months)) {
+      throw new Error("Невідомий період");
+    }
+
+    const files = await filesToPurge(months);
+    if (!files.length) return OK;
+
+    // спершу база, потім сховище: якщо видалення в хмарі відвалиться,
+    // краще лишити файл-сироту, ніж рядок, що вказує в нікуди
+    const byTask = new Map<number, number>();
+    for (const file of files) {
+      await run("DELETE FROM task_files WHERE id = ?", file.id);
+      byTask.set(file.task_id, (byTask.get(file.task_id) ?? 0) + 1);
+    }
+    for (const file of files) {
+      await deleteStoredFile(file.task_id, file.stored_name);
+    }
+    for (const [taskId, n] of byTask) {
+      const what = `${n} ${plural(n, ["файл", "файли", "файлів"])}`;
+      await recordEvent(taskId, user.id, "files_purged", what);
+    }
+
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 /* ------------------------------------------------------- сповіщення / команда */
 
 export async function readAllNotifications(): Promise<ActionResult> {
@@ -813,6 +853,35 @@ export async function togglePermission(
     if (target.role === "owner") throw new Error("Власник завжди має всі права");
 
     await run(`UPDATE users SET ${key} = ? WHERE id = ?`, value ? 1 : 0, userId);
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * Видалення людини з команди назавжди. Власника через інтерфейс не прибрати —
+ * інакше цех міг би лишитися без жодного, хто керує правами; таке робиться
+ * лише руками в базі. Задачі не зникають: у схемі стоїть ON DELETE SET NULL,
+ * тож вони просто лишаються без виконавця, а історія й статистика цілі.
+ */
+export async function deleteUser(userId: number): Promise<ActionResult> {
+  try {
+    const actor = await requireUser();
+    assertCan(actor, "can_manage_team");
+    if (actor.id === userId) throw new Error("Не можна видалити себе");
+
+    const target = await queryOne<{ role: Role; name: string }>(
+      "SELECT role, name FROM users WHERE id = ?",
+      userId
+    );
+    if (!target) throw new Error("Користувача не знайдено");
+    if (target.role === "owner") {
+      throw new Error("Власника видалити не можна — спершу змініть йому роль");
+    }
+
+    await run("DELETE FROM users WHERE id = ?", userId);
     refresh();
     return OK;
   } catch (e) {

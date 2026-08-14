@@ -7,6 +7,7 @@ export type EventType =
   | "edited"
   | "files_added"
   | "file_deleted"
+  | "files_purged"
   | "assigned"
   | "unassigned"
   | "reordered"
@@ -23,6 +24,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   edited: "Задачу відредаговано",
   files_added: "Додано файли",
   file_deleted: "Видалено файл",
+  files_purged: "Файли прибрано при очищенні архіву",
   assigned: "Закріплено за виконавцем",
   unassigned: "Знято закріплення",
   reordered: "Змінено місце в черзі",

@@ -41,6 +41,20 @@ export const STATUS_LABELS: Record<Status, string> = {
   cancelled: "Скасовано",
 };
 
+/**
+ * Дозволені періоди для очищення файлів архіву. Список закритий: із форми
+ * приходить число, і брати його на віру не можна — інакше підміною значення
+ * можна було б знести файли свіжих задач.
+ */
+export const PURGE_MONTHS = [3, 6, 12, 24] as const;
+
+export const PURGE_LABELS: Record<number, string> = {
+  3: "старші за 3 місяці",
+  6: "старші за півроку",
+  12: "старші за рік",
+  24: "старші за два роки",
+};
+
 export interface User {
   id: number;
   name: string;
