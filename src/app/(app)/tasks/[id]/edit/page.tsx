@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { can, requireUser } from "@/lib/auth";
 import { getTask, listMaterials, listMillers } from "@/lib/queries";
+import { orderLabel } from "@/lib/format";
 import { directUploadEnabled } from "@/lib/storage";
 import TaskForm from "@/components/TaskForm";
 
@@ -21,7 +22,7 @@ export default async function EditTaskPage({ params }: { params: Promise<{ id: s
       </Link>
       <h1 className="mb-1 text-2xl font-bold">Редагування</h1>
       <p className="mb-5 text-sm text-ink-muted">
-        {task.code ?? `#${task.id}`} · про зміни отримають сповіщення виконавець і керівництво.
+        {orderLabel(task)} · про зміни отримають сповіщення виконавець і керівництво.
       </p>
       <TaskForm
         me={me}

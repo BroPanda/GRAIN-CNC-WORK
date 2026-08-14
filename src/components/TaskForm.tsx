@@ -171,18 +171,6 @@ export default function TaskForm({
               placeholder="ТОВ «Автомир»"
             />
           </div>
-          <div>
-            <label className="label" htmlFor="order_no">
-              № замовлення
-            </label>
-            <input
-              id="order_no"
-              name="order_no"
-              className="field"
-              defaultValue={task?.order_no ?? ""}
-              placeholder="2026-114"
-            />
-          </div>
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3">

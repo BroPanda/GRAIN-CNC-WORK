@@ -153,7 +153,7 @@ export interface Notification {
   created_at: string;
   actor_name: string | null;
   task_title: string | null;
-  task_code: string | null;
+  task_order_no: string | null;
 }
 
 /** Задача, збагачена даними для списків. */

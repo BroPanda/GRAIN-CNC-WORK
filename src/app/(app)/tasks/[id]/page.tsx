@@ -18,6 +18,7 @@ import {
   formatDateTime,
   formatDueDate,
   formatMoney,
+  orderLabel,
   relativeTime,
 } from "@/lib/format";
 import TaskActions from "@/components/TaskActions";
@@ -63,7 +64,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
     ["Товщина", task.thickness_mm ? `${task.thickness_mm} мм` : "—"],
     ["Кількість", `${task.quantity} шт`],
     ["Замовник", task.customer || "—"],
-    ["№ замовлення", task.order_no || "—"],
+
     ["Термін", task.due_date ? formatDueDate(task.due_date) : "—"],
   ];
 
@@ -93,7 +94,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 <span className={`chip ${PRIORITY_STYLE.urgent}`}>Терміново</span>
               )}
               {due && <span className={`chip ${DUE_TONE[due.tone]}`}>{due.label}</span>}
-              <span className="font-mono text-xs text-ink-dim">{task.code ?? `#${task.id}`}</span>
+              <span className="font-mono text-xs text-ink-dim">{orderLabel(task)}</span>
             </div>
             <h1 className="text-xl font-bold break-words sm:text-2xl">{task.title}</h1>
             <p className="mt-1 text-xs text-ink-dim">

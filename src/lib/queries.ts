@@ -107,12 +107,12 @@ export function listArchive(viewer: User, search: string): Promise<TaskListItem[
   const sql = `${taskSelect(viewer)}
     WHERE t.status IN ('done','cancelled')
     ${restrictToViewer ? "AND (t.assignee_id IS NULL OR t.assignee_id = ? OR t.worker_id = ?)" : ""}
-    ${term ? "AND (t.title ILIKE ? OR t.customer ILIKE ? OR t.order_no ILIKE ? OR t.code ILIKE ?)" : ""}
+    ${term ? "AND (t.title ILIKE ? OR t.customer ILIKE ? OR t.order_no ILIKE ?)" : ""}
     ORDER BY COALESCE(t.finished_at, t.updated_at) DESC, t.id DESC
     LIMIT 200`;
   const params: (string | number)[] = [];
   if (restrictToViewer) params.push(viewer.id, viewer.id);
-  if (term) params.push(like, like, like, like);
+  if (term) params.push(like, like, like);
   return queryAll<TaskListItem>(sql, ...params);
 }
 
@@ -161,7 +161,7 @@ export function listNotifications(
 ): Promise<Notification[]> {
   const filter = groupFilter(group);
   return queryAll<Notification>(
-    `SELECT n.*, u.name AS actor_name, t.title AS task_title, t.code AS task_code
+    `SELECT n.*, u.name AS actor_name, t.title AS task_title, t.order_no AS task_order_no
      FROM notifications n
      LEFT JOIN users u ON u.id = n.actor_id
      LEFT JOIN tasks t ON t.id = n.task_id

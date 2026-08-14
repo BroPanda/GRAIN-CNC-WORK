@@ -7,6 +7,7 @@ import {
   groupFilter,
   tgBuckets,
 } from "./notif-groups";
+import { orderLabel } from "./format";
 import { appUrl, botToken, sendMessage } from "./telegram";
 import type { Task, User } from "./types";
 
@@ -45,8 +46,8 @@ export const EVENT_LABELS: Record<EventType, string> = {
   comment: "Коментар",
 };
 
-export function taskLabel(task: Pick<Task, "id" | "code" | "title">): string {
-  return `${task.code ?? `#${task.id}`} «${task.title}»`;
+export function taskLabel(task: Pick<Task, "id" | "order_no" | "title">): string {
+  return `${orderLabel(task)} «${task.title}»`;
 }
 
 export function recordEvent(
@@ -173,8 +174,8 @@ async function sendToTelegram(
     .map((r) => r.telegram_id);
   if (!chats.length) return;
 
-  const task = await queryAll<{ code: string | null; title: string; customer: string }>(
-    "SELECT code, title, customer FROM tasks WHERE id = ?",
+  const task = await queryAll<{ order_no: string; title: string; customer: string }>(
+    "SELECT order_no, title, customer FROM tasks WHERE id = ?",
     taskId
   );
   const t = task[0];
@@ -191,7 +192,7 @@ async function sendToTelegram(
   ].join("\n");
 
   // у тексті сповіщення код і назва вже є — із заголовком вони повторились би
-  const label = t ? taskLabel({ id: taskId, code: t.code, title: t.title }) : "";
+  const label = t ? taskLabel({ id: taskId, order_no: t.order_no, title: t.title }) : "";
   const body = (label ? text.split(label).join("") : text)
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([:,.])/g, "$1")

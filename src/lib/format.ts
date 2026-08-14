@@ -1,4 +1,9 @@
-import type { Priority, Status } from "./types";
+import type { Priority, Status, Task } from "./types";
+
+/** «№ 2026-007» — номер замовлення; у давніх задач без номера лишається id. */
+export function orderLabel(task: Pick<Task, "id" | "order_no">): string {
+  return task.order_no ? `№ ${task.order_no}` : `#${task.id}`;
+}
 
 /**
  * Час із БД приходить як ISO-рядок ("2026-08-05T18:46:27.705Z").

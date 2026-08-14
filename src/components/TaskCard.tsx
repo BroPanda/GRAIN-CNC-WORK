@@ -1,7 +1,14 @@
 import Link from "next/link";
 import type { TaskListItem } from "@/lib/types";
 import { STATUS_LABELS } from "@/lib/types";
-import { PRIORITY_STYLE, STATUS_STYLE, dueMeta, formatMoney, specLine } from "@/lib/format";
+import {
+  PRIORITY_STYLE,
+  STATUS_STYLE,
+  dueMeta,
+  formatMoney,
+  orderLabel,
+  specLine,
+} from "@/lib/format";
 import { IconCube, IconImage, IconPaperclip } from "@/components/Icons";
 
 const DUE_TONE = {
@@ -61,14 +68,13 @@ export default function TaskCard({ task, index, actions }: Props) {
                     {task.title}
                   </h3>
                   <span className="shrink-0 font-mono text-xs text-ink-dim">
-                    {task.code ?? `#${task.id}`}
+                    {orderLabel(task)}
                   </span>
                 </div>
 
                 <p className="mt-0.5 truncate text-xs text-ink-muted">
                   {specLine(task)}
                   {task.customer ? ` · ${task.customer}` : ""}
-                  {task.order_no ? ` · зам. ${task.order_no}` : ""}
                 </p>
 
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">

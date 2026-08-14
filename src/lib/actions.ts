@@ -72,20 +72,26 @@ function numOrNull(fd: FormData, key: string): number | null {
 }
 
 /**
- * Наступний код задачі у форматі C-104 — на одиницю більший за найбільший
- * виданий раніше. Рахувати від кількості задач не можна: варто прибрати
- * стару задачу, як наступна дістане код, що вже колись існував, і два різні
- * замовлення в паперах виявляться під одним номером.
+ * Наступний номер замовлення у вигляді «2026-001»: рік і порядковий номер,
+ * що з січня починає рахунок заново. Беремо на одиницю більший за найбільший
+ * виданий цього року — рахувати від кількості задач не можна, бо варто
+ * прибрати стару, як наступна дістане номер, що вже колись існував, і два
+ * різні замовлення в паперах опиняться під одним.
  */
-async function nextCode(): Promise<string> {
-  // CASE, а не WHERE: так приведення до числа виконується лише для кодів
-  // потрібного вигляду й не спіткнеться об чужий формат на кшталт «T-001»
+async function nextOrderNo(): Promise<string> {
+  const year = new Date().toLocaleString("uk-UA", {
+    timeZone: "Europe/Kyiv",
+    year: "numeric",
+  });
+  // CASE, а не WHERE: приведення до числа спрацює лише для номерів цього
+  // року й не спіткнеться об чужий формат, якщо такий колись траплявся
   const last = await count(
-    `SELECT COALESCE(MAX(CASE WHEN code ~ '^C-[0-9]+$'
-                              THEN SUBSTRING(code FROM 3)::int END), 100)::int AS n
-       FROM tasks`
+    `SELECT COALESCE(MAX(CASE WHEN order_no ~ ('^' || ? || '-[0-9]+$')
+                              THEN split_part(order_no, '-', 2)::int END), 0)::int AS n
+       FROM tasks`,
+    year
   );
-  return `C-${last + 1}`;
+  return `${year}-${String(last + 1).padStart(3, "0")}`;
 }
 
 /* ------------------------------------------------------------------ сесія */
@@ -129,15 +135,14 @@ export async function createTask(fd: FormData): Promise<ActionResult> {
     const pos = toTop ? (bounds?.lo ?? 0) - 1 : (bounds?.hi ?? 0) + 1;
 
     const taskId = await insertReturningId(
-      `INSERT INTO tasks (code, title, description, customer, order_no, material,
+      `INSERT INTO tasks (title, description, customer, order_no, material,
          thickness_mm, quantity, budget_uah, priority, due_date, assignee_id,
          queue_pos, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      await nextCode(),
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       title,
       str(fd, "description"),
       str(fd, "customer"),
-      str(fd, "order_no"),
+      await nextOrderNo(),
       str(fd, "material"),
       numOrNull(fd, "thickness_mm"),
       Math.max(1, Number(str(fd, "quantity") || "1") || 1),
@@ -193,14 +198,13 @@ export async function updateTask(taskId: number, fd: FormData): Promise<ActionRe
     const editsBudget = can(user, "can_see_budget");
 
     await run(
-      `UPDATE tasks SET title = ?, description = ?, customer = ?, order_no = ?,
+      `UPDATE tasks SET title = ?, description = ?, customer = ?,
          material = ?, thickness_mm = ?, quantity = ?, priority = ?, due_date = ?,
          assignee_id = ?${editsBudget ? ", budget_uah = ?" : ""}, updated_at = now()
        WHERE id = ?`,
       title,
       str(fd, "description"),
       str(fd, "customer"),
-      str(fd, "order_no"),
       str(fd, "material"),
       numOrNull(fd, "thickness_mm"),
       Math.max(1, Number(str(fd, "quantity") || "1") || 1),

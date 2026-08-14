@@ -67,8 +67,8 @@ export default function NotificationItem({ item }: { item: Notification }) {
           </button>
         )}
       </div>
-      {item.task_code && (
-        <div className="mt-1 font-mono text-xs text-ink-dim">{item.task_code}</div>
+      {item.task_order_no && (
+        <div className="mt-1 font-mono text-xs text-ink-dim">№ {item.task_order_no}</div>
       )}
     </div>
   );
