@@ -74,23 +74,32 @@ export async function millerAudience(task: Pick<Task, "assignee_id">): Promise<n
   return rows.map((r) => r.id);
 }
 
+interface NotifyOptions {
+  /**
+   * Сповістити й самого автора — у застосунку теж. Потрібно, коли людина
+   * свідомо адресує задачу собі: це вже нагадування, а не відлуння дії.
+   */
+  allowSelf?: boolean;
+  /**
+   * Чи слати авторові копію в Telegram (якщо він увімкнув «власні дії»).
+   * Одна дія нерідко розсилає кілька різних текстів — адресату й окремо
+   * керівництву. Копія має бути рівно одна, тому решта викликів це вимикає.
+   */
+  selfCopy?: boolean;
+}
+
 export async function notify(
   userIds: number[],
   actor: User,
   taskId: number,
   type: EventType,
   text: string,
-  /**
-   * Пропустити сповіщення й самому собі. Потрібно, коли людина свідомо
-   * адресує задачу собі — це вже не «відлуння власної дії», а нагадування,
-   * і воно має прийти, зокрема в Telegram.
-   */
-  allowSelf = false
+  { allowSelf = false, selfCopy = true }: NotifyOptions = {}
 ): Promise<void> {
   const all = [...new Set(userIds)];
   const targets = allowSelf ? all : all.filter((id) => id !== actor.id);
   if (!targets.length) {
-    await sendToTelegram([], actor, taskId, type, text);
+    if (selfCopy) await sendToTelegram([], actor, taskId, type, text, true);
     return;
   }
 
@@ -102,7 +111,7 @@ export async function notify(
     ...params
   );
 
-  await sendToTelegram(targets, actor, taskId, type, text);
+  await sendToTelegram(targets, actor, taskId, type, text, selfCopy);
 }
 
 /** Екранування під parse_mode: HTML — імена й назви задач пишуть люди. */
@@ -130,13 +139,15 @@ async function sendToTelegram(
   actor: User,
   taskId: number,
   type: EventType,
-  text: string
+  text: string,
+  selfCopy: boolean
 ): Promise<void> {
   if (!botToken()) return;
 
   const bucket = bucketForType(type);
   // автора беремо теж: він отримає копію, якщо сам про це попросив (tg_self)
-  const ids = [...new Set([...targets, actor.id])];
+  const ids = [...new Set(selfCopy ? [...targets, actor.id] : targets)];
+  if (!ids.length) return;
   const holes = ids.map(() => "?").join(", ");
   const rows = await queryAll<{
     id: number;

@@ -324,15 +324,17 @@ export async function sendToRework(
         target.id === user.id
           ? `Ви лишили собі ${taskLabel(task)} на доопрацювання: ${reason}`
           : `${user.name} передав вам ${taskLabel(task)} на доопрацювання: ${reason}`,
-        // адресував собі — це нагадування, а не відлуння власної дії
-        target.id === user.id
+        // адресував собі — це нагадування, а не відлуння власної дії;
+        // копію «власної дії» дасть повідомлення керівництву нижче
+        { allowSelf: target.id === user.id, selfCopy: target.id === user.id }
       );
       await notify(
         management.filter((id) => id !== target.id),
         user,
         taskId,
         "rework",
-        `${user.name} передав ${taskLabel(task)} на доопрацювання (${target.name}): ${reason}`
+        `${user.name} передав ${taskLabel(task)} на доопрацювання (${target.name}): ${reason}`,
+        { selfCopy: target.id !== user.id }
       );
     } else {
       await notify(
@@ -397,7 +399,7 @@ export async function returnToQueue(
         taskId,
         "returned",
         `${user.name} доопрацював ${taskLabel(task)} — можна продовжувати`,
-        waiting === user.id
+        { allowSelf: waiting === user.id, selfCopy: waiting === user.id }
       );
     }
     await notify(
@@ -410,7 +412,8 @@ export async function returnToQueue(
       "returned",
       target
         ? `${user.name} доопрацював ${taskLabel(task)} і закріпив за ${target.name}`
-        : `${user.name} доопрацював і повернув у чергу ${taskLabel(task)}`
+        : `${user.name} доопрацював і повернув у чергу ${taskLabel(task)}`,
+      { selfCopy: waiting !== user.id }
     );
 
     refresh(taskId);
