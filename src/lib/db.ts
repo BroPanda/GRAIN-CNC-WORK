@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   assignee_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
   -- хто фізично виконує (проставляється при «Взяти в роботу»)
   worker_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  -- кому адресоване доопрацювання; NULL = всьому відділу моделювання
+  rework_to    INTEGER REFERENCES users(id) ON DELETE SET NULL,
   queue_pos    DOUBLE PRECISION NOT NULL DEFAULT 0,
   created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -127,6 +129,8 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS budget_uah NUMERIC(12,2);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS can_see_budget INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id BIGINT;
+-- кому адресоване доопрацювання; NULL = всьому відділу моделювання
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rework_to INTEGER REFERENCES users(id) ON DELETE SET NULL;
 -- один номер = одна людина, інакше незрозуміло, кого пускати
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tgid ON users(telegram_id) WHERE telegram_id IS NOT NULL;

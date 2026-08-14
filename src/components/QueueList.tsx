@@ -33,6 +33,8 @@ interface Props {
   tasks: TaskListItem[];
   me: User;
   abilities: Abilities;
+  /** Кому можна віддати доопрацювання — далі в TaskActions. */
+  modelers: Pick<User, "id" | "name" | "job_title">[];
 }
 
 function Row({
@@ -40,6 +42,7 @@ function Row({
   index,
   me,
   abilities,
+  modelers,
   draggable,
   first,
   last,
@@ -48,6 +51,7 @@ function Row({
   index: number;
   me: User;
   abilities: Abilities;
+  modelers: Pick<User, "id" | "name" | "job_title">[];
   draggable: boolean;
   first: boolean;
   last: boolean;
@@ -84,6 +88,7 @@ function Row({
                 task={task}
                 me={me}
                 abilities={abilities}
+                modelers={modelers}
                 compact
                 showNudge
                 nudgeUpDisabled={first}
@@ -97,7 +102,7 @@ function Row({
   );
 }
 
-export default function QueueList({ tasks, me, abilities }: Props) {
+export default function QueueList({ tasks, me, abilities, modelers }: Props) {
   const router = useRouter();
   const { run, error } = useAction();
   const [items, setItems] = useState(tasks);
@@ -163,6 +168,7 @@ export default function QueueList({ tasks, me, abilities }: Props) {
                 index={i}
                 me={me}
                 abilities={abilities}
+                modelers={modelers}
                 draggable={abilities.reorder}
                 first={i === 0}
                 last={i === items.length - 1}

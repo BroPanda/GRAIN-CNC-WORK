@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { count, insertReturningId, queryAll, queryOne, run, transaction } from "./db";
 import { assertCan, can, endSession, requireUser, startSession } from "./auth";
 import { botConfigured } from "./telegram";
-import { canSeeTask, filesToPurge, getTaskRaw } from "./queries";
+import { canSeeTask, filesToPurge, getTaskRaw, listModelers } from "./queries";
 import {
   type EventType,
   managementAudience,
@@ -269,8 +269,17 @@ export async function takeTask(taskId: number): Promise<ActionResult> {
   }
 }
 
-/** Відправити на доопрацювання — обов'язково з причиною. */
-export async function sendToRework(taskId: number, comment: string): Promise<ActionResult> {
+/**
+ * Відправити на доопрацювання — обов'язково з причиною і з адресатом.
+ * `to` — id моделювальника, якому це персонально; null — усьому відділу.
+ * Адресат зберігається в задачі, а не лише в тексті сповіщення: інакше через
+ * тиждень ніхто не згадає, на кому саме воно висить.
+ */
+export async function sendToRework(
+  taskId: number,
+  comment: string,
+  to: number | null = null
+): Promise<ActionResult> {
   try {
     const user = await requireUser();
     const task = await getTaskRaw(taskId);
@@ -284,16 +293,52 @@ export async function sendToRework(taskId: number, comment: string): Promise<Act
       throw new Error("Задача вже закрита");
     }
 
-    await run("UPDATE tasks SET status = 'rework', updated_at = now() WHERE id = ?", taskId);
+    // адресата беремо не на віру: у полі має бути активний моделювальник
+    let target: User | null = null;
+    if (to !== null) {
+      target = (await listModelers()).find((m) => m.id === to) ?? null;
+      if (!target) throw new Error("Оберіть, кому саме віддати на доопрацювання");
+    }
 
-    await recordEvent(taskId, user.id, "rework", reason);
-    await notify(
-      await managementAudience(),
-      user,
-      taskId,
-      "rework",
-      `${user.name} відправив ${taskLabel(task)} на доопрацювання: ${reason}`
+    await run(
+      "UPDATE tasks SET status = 'rework', rework_to = ?, updated_at = now() WHERE id = ?",
+      target?.id ?? null,
+      taskId
     );
+
+    await recordEvent(
+      taskId,
+      user.id,
+      "rework",
+      target ? `${target.name}: ${reason}` : reason
+    );
+
+    const management = await managementAudience();
+    if (target) {
+      // адресату — особисто, решті керівництва — хто кому передав
+      await notify(
+        [target.id],
+        user,
+        taskId,
+        "rework",
+        `${user.name} передав вам ${taskLabel(task)} на доопрацювання: ${reason}`
+      );
+      await notify(
+        management.filter((id) => id !== target.id),
+        user,
+        taskId,
+        "rework",
+        `${user.name} передав ${taskLabel(task)} на доопрацювання (${target.name}): ${reason}`
+      );
+    } else {
+      await notify(
+        management,
+        user,
+        taskId,
+        "rework",
+        `${user.name} відправив ${taskLabel(task)} на доопрацювання: ${reason}`
+      );
+    }
 
     refresh(taskId);
     return OK;
@@ -311,11 +356,28 @@ export async function returnToQueue(taskId: number, comment: string): Promise<Ac
     if (!task) throw new Error("Задачу не знайдено");
     if (task.status !== "rework") throw new Error("Задача не на доопрацюванні");
 
-    await run("UPDATE tasks SET status = 'queued', updated_at = now() WHERE id = ?", taskId);
+    await run(
+      "UPDATE tasks SET status = 'queued', rework_to = NULL, updated_at = now() WHERE id = ?",
+      taskId
+    );
 
     await recordEvent(taskId, user.id, "returned", comment.trim());
+
+    // фрезерувальнику, який відправляв задачу, пишемо особисто — саме він чекає
+    const waiting = task.worker_id;
+    if (waiting) {
+      await notify(
+        [waiting],
+        user,
+        taskId,
+        "returned",
+        `${user.name} доопрацював ${taskLabel(task)} — можна продовжувати`
+      );
+    }
     await notify(
-      [...(await millerAudience(task)), ...(await managementAudience())],
+      [...(await millerAudience(task)), ...(await managementAudience())].filter(
+        (id) => id !== waiting
+      ),
       user,
       taskId,
       "returned",

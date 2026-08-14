@@ -77,6 +77,10 @@ export default function TaskCard({ task, index, actions }: Props) {
                     {task.status === "in_progress" && task.worker_name
                       ? ` · ${task.worker_name}`
                       : ""}
+                    {/* на доопрацюванні одразу видно, на кому воно висить */}
+                    {task.status === "rework"
+                      ? ` · ${task.rework_to_name ?? "відділ моделювання"}`
+                      : ""}
                   </span>
                   {task.priority === "urgent" && !closed && (
                     <span className={`chip ${PRIORITY_STYLE.urgent}`}>Терміново</span>

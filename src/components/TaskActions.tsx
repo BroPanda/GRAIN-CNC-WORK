@@ -64,6 +64,8 @@ interface Props {
   task: TaskListItem;
   me: User;
   abilities: Abilities;
+  /** Кому можна віддати доопрацювання — відділ моделювання. */
+  modelers?: Pick<User, "id" | "name" | "job_title">[];
   /** Компактний набір для карток у списку. */
   compact?: boolean;
   /** Показувати кнопки зміни місця в черзі. */
@@ -76,6 +78,7 @@ export default function TaskActions({
   task,
   me,
   abilities,
+  modelers = [],
   compact = false,
   showNudge = false,
   nudgeUpDisabled,
@@ -85,12 +88,15 @@ export default function TaskActions({
   const { run, pending, error } = useAction();
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [comment, setComment] = useState("");
+  /** 0 — увесь відділ моделювання, інакше id конкретної людини. */
+  const [reworkTo, setReworkTo] = useState(0);
 
   const done = () => router.refresh();
   const size = compact ? "btn-sm" : "";
 
   const openDialog = (kind: DialogKind) => {
     setComment("");
+    setReworkTo(0);
     setDialog(kind);
   };
 
@@ -98,7 +104,7 @@ export default function TaskActions({
     const kind = dialog;
     if (!kind) return;
     const map = {
-      rework: () => sendToRework(task.id, comment),
+      rework: () => sendToRework(task.id, comment, reworkTo || null),
       done: () => completeTask(task.id, comment),
       cancel: () => cancelTask(task.id, comment),
       return: () => returnToQueue(task.id, comment),
@@ -244,6 +250,33 @@ export default function TaskActions({
       )}
 
       <Dialog open={!!dialog} title={meta?.title ?? ""} onClose={() => setDialog(null)}>
+        {dialog === "rework" && modelers.length > 0 && (
+          <div className="mb-3">
+            <label className="label" htmlFor="rework-to">
+              Кому
+            </label>
+            <select
+              id="rework-to"
+              className="field"
+              value={reworkTo}
+              onChange={(e) => setReworkTo(Number(e.target.value))}
+            >
+              <option value={0}>Відділ моделювання — усі</option>
+              {modelers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                  {m.job_title ? ` · ${m.job_title}` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-ink-dim">
+              {reworkTo
+                ? "Людина отримає особисте сповіщення, задача позначиться її імʼям."
+                : "Побачить увесь відділ — візьме той, хто вільний."}
+            </p>
+          </div>
+        )}
+
         <label className="label" htmlFor="action-comment">
           {meta?.label}
         </label>

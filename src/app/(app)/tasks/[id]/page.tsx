@@ -7,6 +7,7 @@ import {
   getTaskEvents,
   getTaskFiles,
   listMillers,
+  listModelers,
 } from "@/lib/queries";
 import { ROLE_LABELS, STATUS_LABELS } from "@/lib/types";
 import { EVENT_LABELS, type EventType } from "@/lib/notify";
@@ -48,10 +49,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   if (!task || !canSeeTask(me, task)) notFound();
 
   const abilities = abilitiesFor(me);
-  const [files, events, millers] = await Promise.all([
+  const [files, events, millers, modelers] = await Promise.all([
     getTaskFiles(task.id),
     getTaskEvents(task.id),
     listMillers(),
+    listModelers(),
   ]);
   const due = dueMeta(task.due_date);
   const canUpload = can(me, "can_upload_files");
@@ -83,6 +85,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
               <span className={`chip ${STATUS_STYLE[task.status]}`}>
                 {STATUS_LABELS[task.status]}
+                {task.status === "rework"
+                  ? ` · ${task.rework_to_name ?? "відділ моделювання"}`
+                  : ""}
               </span>
               {task.priority === "urgent" && (
                 <span className={`chip ${PRIORITY_STYLE.urgent}`}>Терміново</span>
@@ -107,7 +112,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
 
         {/* Дії */}
         <div className="mt-4 flex flex-wrap gap-2 border-t border-white/8 pt-4">
-          <TaskActions task={task} me={me} abilities={abilities} />
+          <TaskActions task={task} me={me} abilities={abilities} modelers={modelers} />
         </div>
       </div>
 

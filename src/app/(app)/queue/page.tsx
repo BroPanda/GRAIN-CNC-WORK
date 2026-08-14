@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { can, requireUser } from "@/lib/auth";
-import { getStats, listTasks } from "@/lib/queries";
+import { getStats, listModelers, listTasks } from "@/lib/queries";
 import type { TaskListItem } from "@/lib/types";
 import TaskCard from "@/components/TaskCard";
 import TaskActions from "@/components/TaskActions";
@@ -35,7 +35,10 @@ export default async function QueuePage({
 
   const apply = (tasks: TaskListItem[]) => {
     if (filter === "mine") {
-      return tasks.filter((t) => t.worker_id === me.id || t.assignee_id === me.id);
+      // для моделювальника «моє» — це ще й те, що передали особисто йому
+      return tasks.filter(
+        (t) => t.worker_id === me.id || t.assignee_id === me.id || t.rework_to === me.id
+      );
     }
     if (filter === "hot") {
       return tasks.filter((t) => t.priority === "urgent" || isOverdue(t));
@@ -43,11 +46,12 @@ export default async function QueuePage({
     return tasks;
   };
 
-  const [inProgressAll, queuedAll, reworkAll, stats] = await Promise.all([
+  const [inProgressAll, queuedAll, reworkAll, stats, modelers] = await Promise.all([
     listTasks(me, ["in_progress"]),
     listTasks(me, ["queued"]),
     listTasks(me, ["rework"]),
     getStats(me),
+    listModelers(),
   ]);
   const inProgress = apply(inProgressAll);
   const queued = apply(queuedAll);
@@ -108,7 +112,15 @@ export default async function QueuePage({
               <TaskCard
                 key={task.id}
                 task={task}
-                actions={<TaskActions task={task} me={me} abilities={abilities} compact />}
+                actions={
+                  <TaskActions
+                    task={task}
+                    me={me}
+                    abilities={abilities}
+                    modelers={modelers}
+                    compact
+                  />
+                }
               />
             ))}
           </div>
@@ -116,7 +128,7 @@ export default async function QueuePage({
       )}
 
       <Section id="queued" title="У черзі" count={queued.length}>
-        <QueueList tasks={queued} me={me} abilities={abilities} />
+        <QueueList tasks={queued} me={me} abilities={abilities} modelers={modelers} />
       </Section>
 
       {rework.length > 0 && (
@@ -132,7 +144,15 @@ export default async function QueuePage({
               <TaskCard
                 key={task.id}
                 task={task}
-                actions={<TaskActions task={task} me={me} abilities={abilities} compact />}
+                actions={
+                  <TaskActions
+                    task={task}
+                    me={me}
+                    abilities={abilities}
+                    modelers={modelers}
+                    compact
+                  />
+                }
               />
             ))}
           </div>

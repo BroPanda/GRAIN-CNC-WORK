@@ -98,6 +98,8 @@ export interface Task {
   status: Status;
   assignee_id: number | null;
   worker_id: number | null;
+  /** Кому адресоване доопрацювання; null — усьому відділу моделювання. */
+  rework_to: number | null;
   queue_pos: number;
   created_by: number | null;
   created_at: string;
@@ -148,6 +150,8 @@ export interface TaskListItem extends Task {
   assignee_name: string | null;
   worker_name: string | null;
   author_name: string | null;
+  /** Імʼя адресата доопрацювання; null — весь відділ або доопрацювання не йде. */
+  rework_to_name: string | null;
   image_count: number;
   model_count: number;
   file_count: number;

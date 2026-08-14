@@ -20,7 +20,7 @@ import type {
 const TASK_COLUMNS = [
   "id", "code", "title", "description", "customer", "order_no", "material",
   "thickness_mm", "quantity", "priority", "due_date", "status", "assignee_id",
-  "worker_id", "queue_pos", "created_by", "created_at", "updated_at",
+  "worker_id", "rework_to", "queue_pos", "created_by", "created_at", "updated_at",
   "started_at", "finished_at",
 ]
   .map((c) => `t.${c}`)
@@ -31,6 +31,7 @@ const taskSelect = (viewer: User) => `
     a.name AS assignee_name,
     w.name AS worker_name,
     c.name AS author_name,
+    r.name AS rework_to_name,
     (SELECT COUNT(*)::int FROM task_files f WHERE f.task_id = t.id AND f.kind = 'image') AS image_count,
     (SELECT COUNT(*)::int FROM task_files f WHERE f.task_id = t.id AND f.kind = 'model') AS model_count,
     (SELECT COUNT(*)::int FROM task_files f WHERE f.task_id = t.id) AS file_count,
@@ -40,6 +41,7 @@ const taskSelect = (viewer: User) => `
   LEFT JOIN users a ON a.id = t.assignee_id
   LEFT JOIN users w ON w.id = t.worker_id
   LEFT JOIN users c ON c.id = t.created_by
+  LEFT JOIN users r ON r.id = t.rework_to
 `;
 
 export function listUsers(): Promise<User[]> {
@@ -56,6 +58,18 @@ export async function listActiveUsers(): Promise<User[]> {
 export function listMillers(): Promise<User[]> {
   return queryAll<User>(
     "SELECT * FROM users WHERE role = 'miller' AND is_active = 1 ORDER BY name"
+  );
+}
+
+/**
+ * Хто може прийняти доопрацювання. Власник теж у списку: у малому цеху він
+ * нерідко сам і моделює, а без нього при одному моделювальнику не було б
+ * кому передати задачу, поки той у відпустці.
+ */
+export function listModelers(): Promise<User[]> {
+  return queryAll<User>(
+    `SELECT * FROM users WHERE role IN ('modeler','owner') AND is_active = 1
+     ORDER BY CASE role WHEN 'modeler' THEN 0 ELSE 1 END, name`
   );
 }
 
