@@ -14,7 +14,7 @@ type Filter = "all" | "mine" | "hot";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "Усі" },
   { key: "mine", label: "Мої" },
-  { key: "hot", label: "Гарячі" },
+  { key: "hot", label: "Термінові" },
 ];
 
 function isOverdue(task: TaskListItem): boolean {
