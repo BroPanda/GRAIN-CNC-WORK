@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { tgBuckets } from "@/lib/notif-groups";
 import { botConfigured } from "@/lib/telegram";
-import Link from "next/link";
+import NotifViewTabs from "@/components/NotifViewTabs";
 import NotifSettings from "@/components/NotifSettings";
 
 export default async function NotificationSettingsPage() {
@@ -9,16 +9,12 @@ export default async function NotificationSettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <Link
-        href="/notifications"
-        className="mb-3 inline-block text-sm text-ink-muted hover:text-ink"
-      >
-        ← До сповіщень
-      </Link>
       <header className="mb-4">
-        <h1 className="text-2xl font-bold">Налаштування сповіщень</h1>
+        <h1 className="text-2xl font-bold">Сповіщення</h1>
         <p className="text-sm text-ink-muted">Що і куди вам приходить</p>
       </header>
+
+      <NotifViewTabs active="settings" />
 
       <NotifSettings
         enabled={tgBuckets(me.tg_buckets)}

@@ -3,10 +3,10 @@ import { listNotifications, unreadByGroup } from "@/lib/queries";
 import { readAllNotifications, readNotificationGroup } from "@/lib/actions";
 import { NOTIF_GROUP_LABELS, type NotifGroup, isNotifGroup } from "@/lib/notif-groups";
 import { plural } from "@/lib/format";
-import Link from "next/link";
-import { IconBell, IconSettings } from "@/components/Icons";
+import { IconBell } from "@/components/Icons";
 import NotificationItem from "@/components/NotificationItem";
 import NotificationTabs from "@/components/NotificationTabs";
+import NotifViewTabs from "@/components/NotifViewTabs";
 
 export default async function NotificationsPage({
   searchParams,
@@ -28,25 +28,26 @@ export default async function NotificationsPage({
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <header className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold">Сповіщення</h1>
-          <p className="text-sm text-ink-muted">
-            {counts.all > 0
-              ? `${counts.all} ${plural(counts.all, [
-                  "непрочитане",
-                  "непрочитані",
-                  "непрочитаних",
-                ])}`
-              : "Все прочитано"}
-          </p>
-        </div>
-        <Link href="/notifications/settings" className="btn btn-ghost btn-sm shrink-0">
-          <IconSettings className="h-4 w-4" />
-          Налаштування
-        </Link>
+      <header className="mb-4">
+        <h1 className="text-2xl font-bold">Сповіщення</h1>
+        <p className="text-sm text-ink-muted">
+          {counts.all > 0
+            ? `${counts.all} ${plural(counts.all, [
+                "непрочитане",
+                "непрочитані",
+                "непрочитаних",
+              ])}`
+            : "Все прочитано"}
+        </p>
       </header>
 
+      <NotifViewTabs active="list" />
+
+      {/* Підпис потрібен, бо кнопки схожі на ті, що в налаштуваннях, — а тут
+          вони лише показують потрібне, нічого не вмикаючи й не вимикаючи */}
+      <p className="mb-1.5 text-xs text-ink-dim">
+        Показати лише певні події. Цифра — скільки непрочитаних.
+      </p>
       <NotificationTabs active={active} counts={counts} />
 
       {unreadHere > 0 && (
