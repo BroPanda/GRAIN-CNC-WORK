@@ -183,7 +183,8 @@ async function sendToTelegram(
   // впізнає роботу: замовник, під ним — що саме робимо. Код задачі тут не
   // потрібен, він ні про що не каже; хто відкриє задачу — побачить його там
   const head = [
-    `🏭 <b>${esc(t?.customer || "Без замовника")}</b>`,
+    // замовника може й не бути — тоді рядок просто не з'являється
+    ...(t?.customer ? [`🏭 <b>${esc(t.customer)}</b>`] : []),
     esc(t?.title ?? `Задача #${taskId}`),
     "",
     `${BUCKET_ICON[bucket]} <b>${NOTIF_GROUP_LABELS[bucket]}</b>`,
