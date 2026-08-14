@@ -9,13 +9,19 @@ import QueueList from "@/components/QueueList";
 import Section from "@/components/Section";
 import { IconClock, IconPlus, IconRework } from "@/components/Icons";
 
-type Filter = "all" | "mine" | "hot";
+type Filter = "all" | "mine" | "queued" | "in_progress" | "rework" | "overdue";
 
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: "all", label: "Усі" },
-  { key: "mine", label: "Мої" },
-  { key: "hot", label: "Термінові" },
-];
+const FILTERS: readonly Filter[] = [
+  "all",
+  "mine",
+  "queued",
+  "in_progress",
+  "rework",
+  "overdue",
+] as const;
+
+const isFilter = (v: string | undefined): v is Filter =>
+  !!v && (FILTERS as readonly string[]).includes(v);
 
 function isOverdue(task: TaskListItem): boolean {
   if (!task.due_date) return false;
@@ -31,20 +37,21 @@ export default async function QueuePage({
   const me = await requireUser();
   const abilities = abilitiesFor(me);
   const { f } = await searchParams;
-  const filter: Filter = f === "mine" || f === "hot" ? f : "all";
+  const filter: Filter = isFilter(f) ? f : "all";
+
+  // для моделювальника «моє» — це ще й те, що передали особисто йому
+  const isMine = (t: TaskListItem) =>
+    t.worker_id === me.id || t.assignee_id === me.id || t.rework_to === me.id;
 
   const apply = (tasks: TaskListItem[]) => {
-    if (filter === "mine") {
-      // для моделювальника «моє» — це ще й те, що передали особисто йому
-      return tasks.filter(
-        (t) => t.worker_id === me.id || t.assignee_id === me.id || t.rework_to === me.id
-      );
-    }
-    if (filter === "hot") {
-      return tasks.filter((t) => t.priority === "urgent" || isOverdue(t));
-    }
+    if (filter === "mine") return tasks.filter(isMine);
+    if (filter === "overdue") return tasks.filter(isOverdue);
     return tasks;
   };
+
+  /** Фільтр за станом ховає чужі секції цілком. */
+  const showSection = (status: Filter) =>
+    filter === "all" || filter === "mine" || filter === "overdue" || filter === status;
 
   const [inProgressAll, queuedAll, reworkAll, stats, modelers, millers] = await Promise.all([
     listTasks(me, ["in_progress"]),
@@ -54,6 +61,9 @@ export default async function QueuePage({
     listModelers(),
     listMillers(),
   ]);
+  const activeTotal = inProgressAll.length + queuedAll.length + reworkAll.length;
+  const mineTotal = [...inProgressAll, ...queuedAll, ...reworkAll].filter(isMine).length;
+
   const inProgress = apply(inProgressAll);
   const queued = apply(queuedAll);
   const rework = apply(reworkAll);
@@ -77,33 +87,19 @@ export default async function QueuePage({
         )}
       </header>
 
-      {/* Зведення */}
-      <div className="no-scrollbar mb-4 flex gap-2 overflow-x-auto pb-1">
-        <Stat label="У черзі" value={stats.queued} />
-        <Stat label="В роботі" value={stats.in_progress} tone="info" />
-        <Stat label="Доопрацювання" value={stats.rework} tone="warn" />
-        <Stat label="Прострочено" value={stats.overdue} tone="danger" />
-        <Stat label="Готово за тиждень" value={stats.done_week} tone="ok" />
+      {/* Зведення воно ж фільтр: цифра й дія в одному місці, тож не треба
+          двох рядів кнопок. Останню картку не фільтруємо — здані роботи
+          живуть у статистиці */}
+      <div className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        <Stat filter="all" active={filter} label="Усі" value={activeTotal} />
+        <Stat filter="mine" active={filter} label="Мої" value={mineTotal} />
+        <Stat filter="queued" active={filter} label="У черзі" value={stats.queued} />
+        <Stat filter="in_progress" active={filter} label="В роботі" value={stats.in_progress} tone="info" />
+        <Stat filter="rework" active={filter} label="Доопрацювання" value={stats.rework} tone="warn" />
+        <Stat filter="overdue" active={filter} label="Прострочено" value={stats.overdue} tone="danger" />
       </div>
 
-      {/* Фільтри — на всю ширину: три рівні вкладки, у які легко влучити
-          пальцем на телефоні */}
-      <div className="mb-5 flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
-        {FILTERS.map((item) => (
-          <Link
-            key={item.key}
-            href={item.key === "all" ? "/queue" : `/queue?f=${item.key}`}
-            aria-current={filter === item.key ? "page" : undefined}
-            className={`flex-1 rounded-lg px-3.5 py-2 text-center text-sm font-semibold transition ${
-              filter === item.key ? "bg-gold-500 text-navy-950" : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
-
-      {inProgress.length > 0 && (
+      {showSection("in_progress") && inProgress.length > 0 && (
         <Section
           id="in-progress"
           title="В роботі зараз"
@@ -131,6 +127,7 @@ export default async function QueuePage({
         </Section>
       )}
 
+      {showSection("queued") && (
       <Section id="queued" title="У черзі" count={queued.length}>
         <QueueList
           tasks={queued}
@@ -140,8 +137,9 @@ export default async function QueuePage({
           millers={millers}
         />
       </Section>
+      )}
 
-      {rework.length > 0 && (
+      {showSection("rework") && rework.length > 0 && (
         <Section
           id="rework"
           title="На доопрацюванні"
@@ -173,26 +171,37 @@ export default async function QueuePage({
   );
 }
 
+/** Картка зведення, вона ж кнопка фільтра. */
 function Stat({
+  filter,
+  active,
   label,
   value,
   tone = "muted",
 }: {
+  filter: Filter;
+  active: Filter;
   label: string;
   value: number;
-  tone?: "muted" | "info" | "warn" | "danger" | "ok";
+  tone?: "muted" | "info" | "warn" | "danger";
 }) {
   const tones = {
     muted: "text-ink",
     info: "text-info",
     warn: "text-warn",
     danger: value > 0 ? "text-danger" : "text-ink-dim",
-    ok: "text-ok",
   } as const;
+  const on = active === filter;
   return (
-    <div className="card shrink-0 px-3.5 py-2.5">
-      <div className={`text-xl font-bold ${tones[tone]}`}>{value}</div>
-      <div className="text-[11px] whitespace-nowrap text-ink-dim uppercase">{label}</div>
-    </div>
+    <Link
+      href={filter === "all" ? "/queue" : `/queue?f=${filter}`}
+      aria-current={on ? "page" : undefined}
+      className={`card px-3 py-2.5 transition ${
+        on ? "border-gold-500/60 bg-gold-500/10" : "hover:border-white/20"
+      }`}
+    >
+      <div className={`text-xl font-bold ${on ? "text-gold-300" : tones[tone]}`}>{value}</div>
+      <div className="truncate text-[11px] text-ink-dim uppercase">{label}</div>
+    </Link>
   );
 }

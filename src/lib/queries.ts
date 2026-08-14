@@ -218,7 +218,6 @@ export interface Stats {
   in_progress: number;
   rework: number;
   overdue: number;
-  done_week: number;
 }
 
 export async function getStats(viewer: User): Promise<Stats> {
@@ -227,17 +226,16 @@ export async function getStats(viewer: User): Promise<Stats> {
   const n = (where: string) =>
     count(`SELECT COUNT(*)::int AS n FROM tasks WHERE ${where}${scope}`, ...params);
 
-  const [queued, in_progress, rework, overdue, done_week] = await Promise.all([
+  const [queued, in_progress, rework, overdue] = await Promise.all([
     n("status = 'queued'"),
     n("status = 'in_progress'"),
     n("status = 'rework'"),
     n(
       "status IN ('queued','in_progress','rework') AND due_date IS NOT NULL AND due_date < CURRENT_DATE"
     ),
-    n("status = 'done' AND finished_at >= now() - interval '7 days'"),
   ]);
 
-  return { queued, in_progress, rework, overdue, done_week };
+  return { queued, in_progress, rework, overdue };
 }
 
 /* ------------------------------------------------- статистика виконаних робіт */
