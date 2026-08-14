@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   cancelTask,
   completeTask,
+  deleteTask,
   nudgeTask,
   reopenTask,
   returnToQueue,
@@ -21,6 +22,7 @@ import {
   IconCheck,
   IconPlay,
   IconRework,
+  IconTrash,
   IconX,
 } from "./Icons";
 
@@ -95,6 +97,7 @@ export default function TaskActions({
   const [reworkTo, setReworkTo] = useState(0);
   /** 0 — спільна черга, інакше id фрезерувальника. */
   const [returnTo, setReturnTo] = useState(0);
+  const [removing, setRemoving] = useState(false);
 
   const done = () => router.refresh();
   const size = compact ? "btn-sm" : "";
@@ -252,9 +255,49 @@ export default function TaskActions({
         </>
       )}
 
+      {/* Видалення — тільки власнику й лише на сторінці задачі */}
+      {me.role === "owner" && !compact && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => setRemoving(true)}
+          className={`btn btn-ghost ${size} text-danger`}
+        >
+          <IconTrash className="h-4 w-4" />
+          Видалити
+        </button>
+      )}
+
       {error && !dialog && (
         <p className="w-full text-sm font-semibold text-danger">{error}</p>
       )}
+
+      <Dialog open={removing} title="Видалити задачу назавжди?" onClose={() => setRemoving(false)}>
+        <p className="mb-4 text-sm text-ink-muted">
+          Разом із задачею зникнуть усі її файли, історія та сповіщення про неї —
+          відновити не вийде. Якщо роботу просто не робитимуть, краще{" "}
+          <span className="font-semibold text-ink">Скасувати</span>: тоді вона осяде
+          в архіві й лишиться у статистиці.
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="btn btn-danger flex-1"
+            disabled={pending}
+            onClick={() =>
+              run(() => deleteTask(task.id), () => {
+                setRemoving(false);
+                router.push("/queue");
+              })
+            }
+          >
+            {pending ? "Видаляю…" : "Видалити"}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setRemoving(false)}>
+            Скасувати
+          </button>
+        </div>
+      </Dialog>
 
       <Dialog open={!!dialog} title={meta?.title ?? ""} onClose={() => setDialog(null)}>
         {dialog === "rework" && modelers.length > 0 && (

@@ -463,6 +463,39 @@ export async function completeTask(taskId: number, comment: string): Promise<Act
   }
 }
 
+/**
+ * Видалити задачу назавжди — разом із файлами, історією та сповіщеннями.
+ * Тільки власник: решті лишається «Скасувати», після якого задача осідає в
+ * архіві й далі рахується у статистиці. Видалення потрібне для іншого —
+ * прибрати те, чого взагалі не мало бути: дубль, помилку, тестовий запис.
+ */
+export async function deleteTask(taskId: number): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    if (user.role !== "owner") throw new Error("Видаляти задачі може лише власник");
+    const task = await getTaskRaw(taskId);
+    if (!task) throw new Error("Задачу не знайдено");
+
+    // файли зі сховища прибираємо самі: каскад у базі про хмару не знає
+    const files = await queryAll<TaskFile>(
+      "SELECT * FROM task_files WHERE task_id = ?",
+      taskId
+    );
+
+    // рядки task_files, task_events і notifications підуть каскадом за задачею
+    await run("DELETE FROM tasks WHERE id = ?", taskId);
+
+    for (const file of files) {
+      await deleteStoredFile(taskId, file.stored_name);
+    }
+
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 export async function reopenTask(taskId: number): Promise<ActionResult> {
   try {
     const user = await requireUser();
