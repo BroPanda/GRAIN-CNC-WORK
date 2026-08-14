@@ -96,7 +96,7 @@ export default async function QueuePage({
         <Stat filter="queued" active={filter} label="У черзі" value={stats.queued} />
         <Stat filter="in_progress" active={filter} label="В роботі" value={stats.in_progress} tone="info" />
         <Stat filter="rework" active={filter} label="Доопрацювання" value={stats.rework} tone="warn" />
-        <Stat filter="overdue" active={filter} label="Прострочено" value={stats.overdue} tone="danger" />
+        <Stat filter="overdue" active={filter} label="Протерміновано" value={stats.overdue} tone="danger" />
       </div>
 
       {showSection("in_progress") && inProgress.length > 0 && (

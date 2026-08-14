@@ -78,7 +78,7 @@ export interface DueMeta {
   tone: "danger" | "warn" | "muted";
 }
 
-/** Наскільки гарячий дедлайн: прострочено / сьогодні-завтра / спокійно. */
+/** Наскільки гарячий дедлайн: протерміновано / сьогодні-завтра / спокійно. */
 export function dueMeta(due: string | null): DueMeta | null {
   if (!due) return null;
   const today = new Date();
@@ -89,7 +89,7 @@ export function dueMeta(due: string | null): DueMeta | null {
     (new Date(`${due}T00:00:00`).getTime() - new Date(`${todayStr}T00:00:00`).getTime()) / 86400000
   );
 
-  if (days < 0) return { label: `Прострочено на ${Math.abs(days)} дн`, tone: "danger" };
+  if (days < 0) return { label: `Протерміновано на ${Math.abs(days)} дн`, tone: "danger" };
   if (days === 0) return { label: "Термін — сьогодні", tone: "danger" };
   if (days === 1) return { label: "Термін — завтра", tone: "warn" };
   if (days <= 3) return { label: `Через ${days} дн`, tone: "warn" };
