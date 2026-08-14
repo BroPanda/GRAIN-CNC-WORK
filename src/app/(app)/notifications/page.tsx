@@ -6,7 +6,6 @@ import { plural } from "@/lib/format";
 import { IconBell } from "@/components/Icons";
 import NotificationItem from "@/components/NotificationItem";
 import NotificationTabs from "@/components/NotificationTabs";
-import SoundToggle from "@/components/SoundToggle";
 import NotifViewTabs from "@/components/NotifViewTabs";
 
 export default async function NotificationsPage({
@@ -42,7 +41,6 @@ export default async function NotificationsPage({
               : "Все прочитано"}
           </p>
         </div>
-        <SoundToggle />
       </header>
 
       <NotifViewTabs active="list" />
