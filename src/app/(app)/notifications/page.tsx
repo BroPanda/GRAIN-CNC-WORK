@@ -1,19 +1,13 @@
 import { requireUser } from "@/lib/auth";
 import { listNotifications, unreadByGroup } from "@/lib/queries";
 import { readAllNotifications, readNotificationGroup } from "@/lib/actions";
-import {
-  NOTIF_GROUP_LABELS,
-  type NotifGroup,
-  isNotifGroup,
-  tgBuckets,
-} from "@/lib/notif-groups";
+import { NOTIF_GROUP_LABELS, type NotifGroup, isNotifGroup } from "@/lib/notif-groups";
 import { plural } from "@/lib/format";
 import { IconBell } from "@/components/Icons";
 import NotificationItem from "@/components/NotificationItem";
 import NotificationTabs from "@/components/NotificationTabs";
 import SoundToggle from "@/components/SoundToggle";
-import TelegramNotify from "@/components/TelegramNotify";
-import { botConfigured } from "@/lib/telegram";
+import NotifViewTabs from "@/components/NotifViewTabs";
 
 export default async function NotificationsPage({
   searchParams,
@@ -51,15 +45,9 @@ export default async function NotificationsPage({
         <SoundToggle />
       </header>
 
-      <NotificationTabs active={active} counts={counts} />
+      <NotifViewTabs active="list" />
 
-      {botConfigured() && (
-        <TelegramNotify
-          enabled={tgBuckets(me.tg_buckets)}
-          linked={me.telegram_id !== null}
-          self={me.tg_self === 1}
-        />
-      )}
+      <NotificationTabs active={active} counts={counts} />
 
       {unreadHere > 0 && (
         <form
