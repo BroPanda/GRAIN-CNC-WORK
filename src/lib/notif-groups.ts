@@ -60,6 +60,19 @@ export function bucketForType(type: string): NotifBucket {
   return hit ?? "other";
 }
 
+/**
+ * Категорії, які людина отримує в Telegram. У базі це рядок через кому, але
+ * новачок має отримувати все — тому за замовчуванням там стоїть позначка
+ * «all». Списком її не записуємо свідомо: інакше поява нової категорії
+ * оминула б тих, хто налаштувався давно.
+ */
+export function tgBuckets(value: string | null | undefined): NotifBucket[] {
+  const all = NOTIF_GROUPS.filter((g): g is NotifBucket => g !== "all");
+  if (value === "all") return all;
+  const chosen = (value ?? "").split(",").filter(Boolean);
+  return all.filter((b) => chosen.includes(b));
+}
+
 export function isNotifGroup(value: string | undefined): value is NotifGroup {
   return !!value && (NOTIF_GROUPS as readonly string[]).includes(value);
 }

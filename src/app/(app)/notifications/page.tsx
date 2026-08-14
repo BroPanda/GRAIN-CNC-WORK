@@ -1,7 +1,12 @@
 import { requireUser } from "@/lib/auth";
 import { listNotifications, unreadByGroup } from "@/lib/queries";
 import { readAllNotifications, readNotificationGroup } from "@/lib/actions";
-import { NOTIF_GROUP_LABELS, type NotifGroup, isNotifGroup } from "@/lib/notif-groups";
+import {
+  NOTIF_GROUP_LABELS,
+  type NotifGroup,
+  isNotifGroup,
+  tgBuckets,
+} from "@/lib/notif-groups";
 import { plural } from "@/lib/format";
 import { IconBell } from "@/components/Icons";
 import NotificationItem from "@/components/NotificationItem";
@@ -50,7 +55,7 @@ export default async function NotificationsPage({
 
       {botConfigured() && (
         <TelegramNotify
-          enabled={me.tg_buckets.split(",").filter(Boolean)}
+          enabled={tgBuckets(me.tg_buckets)}
           linked={me.telegram_id !== null}
         />
       )}

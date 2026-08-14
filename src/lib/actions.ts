@@ -19,7 +19,7 @@ import {
 } from "./notify";
 import { plural } from "./format";
 import { normalizePhone } from "./phone";
-import { NOTIF_GROUPS, type NotifGroup, isNotifGroup } from "./notif-groups";
+import { NOTIF_GROUPS, type NotifGroup, isNotifGroup, tgBuckets } from "./notif-groups";
 import { deleteStoredFile, saveUploadedFile, statBlob } from "./storage";
 import { extOf, kindForExt } from "./storage-shared";
 import {
@@ -836,7 +836,7 @@ export async function setTelegramNotify(
     }
 
     const all = NOTIF_GROUPS.filter((g) => g !== "all");
-    const current = new Set(user.tg_buckets.split(",").filter(Boolean));
+    const current = new Set<string>(tgBuckets(user.tg_buckets));
 
     if (bucket === "all") {
       on ? all.forEach((g) => current.add(g)) : current.clear();

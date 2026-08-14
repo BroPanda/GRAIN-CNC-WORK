@@ -1,5 +1,5 @@
 import { queryAll, run } from "./db";
-import { type NotifGroup, bucketForType, groupFilter } from "./notif-groups";
+import { type NotifGroup, bucketForType, groupFilter, tgBuckets } from "./notif-groups";
 import { appUrl, botToken, sendMessage } from "./telegram";
 import type { Task, User } from "./types";
 
@@ -132,7 +132,7 @@ async function sendToTelegram(
     ...targets
   );
   const chats = rows
-    .filter((r) => r.tg_buckets.split(",").includes(bucket))
+    .filter((r) => tgBuckets(r.tg_buckets).includes(bucket))
     .map((r) => r.telegram_id);
   if (!chats.length) return;
 
