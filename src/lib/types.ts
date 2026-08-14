@@ -75,6 +75,8 @@ export interface User {
   can_close_tasks: number;
   can_manage_team: number;
   can_see_budget: number;
+  /** Категорії сповіщень для дублювання в Telegram, через кому. */
+  tg_buckets: string;
   created_at: string;
 }
 

@@ -7,6 +7,8 @@ import { IconBell } from "@/components/Icons";
 import NotificationItem from "@/components/NotificationItem";
 import NotificationTabs from "@/components/NotificationTabs";
 import SoundToggle from "@/components/SoundToggle";
+import TelegramNotify from "@/components/TelegramNotify";
+import { botConfigured } from "@/lib/telegram";
 
 export default async function NotificationsPage({
   searchParams,
@@ -45,6 +47,13 @@ export default async function NotificationsPage({
       </header>
 
       <NotificationTabs active={active} counts={counts} />
+
+      {botConfigured() && (
+        <TelegramNotify
+          enabled={me.tg_buckets.split(",").filter(Boolean)}
+          linked={me.telegram_id !== null}
+        />
+      )}
 
       {unreadHere > 0 && (
         <form

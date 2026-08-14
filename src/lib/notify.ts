@@ -1,5 +1,6 @@
 import { queryAll, run } from "./db";
-import { type NotifGroup, groupFilter } from "./notif-groups";
+import { type NotifGroup, bucketForType, groupFilter } from "./notif-groups";
+import { appUrl, botToken, sendMessage } from "./telegram";
 import type { Task, User } from "./types";
 
 export type EventType =
@@ -90,6 +91,79 @@ export async function notify(
     `INSERT INTO notifications (user_id, task_id, actor_id, type, text) VALUES ${values}`,
     ...params
   );
+
+  await sendToTelegram(targets, actor, taskId, type, text);
+}
+
+/** Екранування під parse_mode: HTML — імена й назви задач пишуть люди. */
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+const BUCKET_ICON: Record<string, string> = {
+  comment: "💬",
+  created: "🆕",
+  done: "✅",
+  rework: "🔁",
+  taken: "▶️",
+  files: "📎",
+  other: "🔔",
+};
+
+/**
+ * Дублює сповіщення в Telegram тим, хто цього просив. Кожен сам обирає
+ * категорії у себе на сторінці сповіщень; хто нічого не обрав — нічого й не
+ * отримує. Помилки доставки лише пишемо в лог: сповіщення в застосунку вже
+ * збережене, і через недоступний Telegram уся дія падати не повинна.
+ */
+async function sendToTelegram(
+  targets: number[],
+  actor: User,
+  taskId: number,
+  type: EventType,
+  text: string
+): Promise<void> {
+  if (!botToken()) return;
+
+  const bucket = bucketForType(type);
+  const holes = targets.map(() => "?").join(", ");
+  const rows = await queryAll<{ telegram_id: number; tg_buckets: string }>(
+    `SELECT telegram_id, tg_buckets FROM users
+      WHERE id IN (${holes}) AND telegram_id IS NOT NULL AND tg_buckets <> ''`,
+    ...targets
+  );
+  const chats = rows
+    .filter((r) => r.tg_buckets.split(",").includes(bucket))
+    .map((r) => r.telegram_id);
+  if (!chats.length) return;
+
+  const task = await queryAll<{ code: string | null; title: string; customer: string }>(
+    "SELECT code, title, customer FROM tasks WHERE id = ?",
+    taskId
+  );
+  const t = task[0];
+
+  // назва задачі окремим рядком, суть — нижче: у стрічці чатів видно головне
+  const head = t
+    ? `${BUCKET_ICON[bucket]} <b>${esc(t.code ?? `#${taskId}`)}</b> — ${esc(t.title)}`
+    : `${BUCKET_ICON[bucket]} <b>Задача #${taskId}</b>`;
+  const customer = t?.customer ? `\n🏭 ${esc(t.customer)}` : "";
+
+  // у тексті сповіщення код і назва вже є — у заголовку вони повторились би
+  const label = t ? taskLabel({ id: taskId, code: t.code, title: t.title }) : "";
+  const body = (label ? text.split(label).join("") : text)
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([:,.])/g, "$1")
+    .trim();
+
+  // «Нова задача» та подібні не називають автора — тоді дописуємо його окремо
+  const who = body.includes(actor.name) ? "" : `\n👤 ${esc(actor.name)}`;
+  const message = `${head}${customer}\n\n${esc(body)}${who}`;
+
+  const keyboard = {
+    inline_keyboard: [[{ text: "Відкрити задачу", url: `${appUrl()}/tasks/${taskId}` }]],
+  };
+
+  await Promise.all(chats.map((chatId) => sendMessage(chatId, message, keyboard)));
 }
 
 export function markAllRead(userId: number): Promise<void> {

@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS users (
   can_manage_team   INTEGER NOT NULL DEFAULT 0,
   -- гроші: за замовчуванням не бачить ніхто, крім власника
   can_see_budget    INTEGER NOT NULL DEFAULT 0,
+  -- категорії сповіщень, які дублюються в Telegram, через кому; порожньо = жодних
+  tg_buckets        TEXT    NOT NULL DEFAULT '',
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -131,6 +133,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id BIGINT;
 -- кому адресоване доопрацювання; NULL = всьому відділу моделювання
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rework_to INTEGER REFERENCES users(id) ON DELETE SET NULL;
+-- які категорії сповіщень дублювати в Telegram; порожньо = не дублювати
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tg_buckets TEXT NOT NULL DEFAULT '';
 -- один номер = одна людина, інакше незрозуміло, кого пускати
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tgid ON users(telegram_id) WHERE telegram_id IS NOT NULL;
