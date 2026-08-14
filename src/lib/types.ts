@@ -153,6 +153,7 @@ export interface Notification {
   created_at: string;
   actor_name: string | null;
   task_title: string | null;
+  task_customer: string | null;
   task_order_no: string | null;
 }
 

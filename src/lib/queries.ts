@@ -175,7 +175,8 @@ export function listNotifications(
 ): Promise<Notification[]> {
   const filter = groupFilter(group);
   return queryAll<Notification>(
-    `SELECT n.*, u.name AS actor_name, t.title AS task_title, t.order_no AS task_order_no
+    `SELECT n.*, u.name AS actor_name, t.title AS task_title,
+            t.customer AS task_customer, t.order_no AS task_order_no
      FROM notifications n
      LEFT JOIN users u ON u.id = n.actor_id
      LEFT JOIN tasks t ON t.id = n.task_id

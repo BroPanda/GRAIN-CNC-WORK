@@ -29,6 +29,17 @@ export const NOTIF_GROUP_LABELS: Record<NotifGroup, string> = {
   other: "Інше",
 };
 
+/** Значок категорії — однаковий у застосунку й у повідомленнях бота. */
+export const NOTIF_GROUP_ICON: Record<NotifBucket, string> = {
+  comment: "💬",
+  created: "🆕",
+  done: "✅",
+  rework: "🔁",
+  taken: "▶️",
+  files: "📎",
+  other: "🔔",
+};
+
 /** Короткі підписи для вузьких екранів. */
 export const NOTIF_GROUP_SHORT: Record<NotifGroup, string> = {
   all: "Всі",

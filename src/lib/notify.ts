@@ -1,5 +1,6 @@
 import { queryAll, run } from "./db";
 import {
+  NOTIF_GROUP_ICON,
   NOTIF_GROUP_LABELS,
   TG_NONE,
   type NotifGroup,
@@ -126,16 +127,6 @@ export async function notify(
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-const BUCKET_ICON: Record<string, string> = {
-  comment: "💬",
-  created: "🆕",
-  done: "✅",
-  rework: "🔁",
-  taken: "▶️",
-  files: "📎",
-  other: "🔔",
-};
-
 /**
  * Дублює сповіщення в Telegram тим, хто цього просив. Кожен сам обирає
  * категорії у себе на сторінці сповіщень; хто нічого не обрав — нічого й не
@@ -188,7 +179,7 @@ async function sendToTelegram(
     ...(t?.customer ? [`🏭 <b>${esc(t.customer)}</b>`] : []),
     esc(t?.title ?? `Задача #${taskId}`),
     "",
-    `${BUCKET_ICON[bucket]} <b>${NOTIF_GROUP_LABELS[bucket]}</b>`,
+    `${NOTIF_GROUP_ICON[bucket]} <b>${NOTIF_GROUP_LABELS[bucket]}</b>`,
   ].join("\n");
 
   // у тексті сповіщення код і назва вже є — із заголовком вони повторились би
