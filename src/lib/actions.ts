@@ -65,10 +65,21 @@ function numOrNull(fd: FormData, key: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Наступний код задачі у форматі C-104. */
+/**
+ * Наступний код задачі у форматі C-104 — на одиницю більший за найбільший
+ * виданий раніше. Рахувати від кількості задач не можна: варто прибрати
+ * стару задачу, як наступна дістане код, що вже колись існував, і два різні
+ * замовлення в паперах виявляться під одним номером.
+ */
 async function nextCode(): Promise<string> {
-  const total = await count("SELECT COUNT(*)::int AS n FROM tasks");
-  return `C-${100 + total + 1}`;
+  // CASE, а не WHERE: так приведення до числа виконується лише для кодів
+  // потрібного вигляду й не спіткнеться об чужий формат на кшталт «T-001»
+  const last = await count(
+    `SELECT COALESCE(MAX(CASE WHEN code ~ '^C-[0-9]+$'
+                              THEN SUBSTRING(code FROM 3)::int END), 100)::int AS n
+       FROM tasks`
+  );
+  return `C-${last + 1}`;
 }
 
 /* ------------------------------------------------------------------ сесія */
