@@ -3,10 +3,10 @@ import { listNotifications, unreadByGroup } from "@/lib/queries";
 import { readAllNotifications, readNotificationGroup } from "@/lib/actions";
 import { NOTIF_GROUP_LABELS, type NotifGroup, isNotifGroup } from "@/lib/notif-groups";
 import { plural } from "@/lib/format";
-import { IconBell } from "@/components/Icons";
+import Link from "next/link";
+import { IconBell, IconSettings } from "@/components/Icons";
 import NotificationItem from "@/components/NotificationItem";
 import NotificationTabs from "@/components/NotificationTabs";
-import NotifViewTabs from "@/components/NotifViewTabs";
 
 export default async function NotificationsPage({
   searchParams,
@@ -41,9 +41,11 @@ export default async function NotificationsPage({
               : "Все прочитано"}
           </p>
         </div>
+        <Link href="/notifications/settings" className="btn btn-ghost btn-sm shrink-0">
+          <IconSettings className="h-4 w-4" />
+          Налаштування
+        </Link>
       </header>
-
-      <NotifViewTabs active="list" />
 
       <NotificationTabs active={active} counts={counts} />
 
