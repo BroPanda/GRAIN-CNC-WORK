@@ -20,6 +20,8 @@ interface Props {
   canSeeBudget: boolean;
   /** Довідник матеріалів — підказки в полі «Матеріал». */
   materials: string[];
+  /** Замовники з попередніх задач — підказки в полі «Замовник». */
+  customers: string[];
 }
 
 export default function TaskForm({
@@ -29,6 +31,7 @@ export default function TaskForm({
   directUpload,
   canSeeBudget,
   materials,
+  customers,
 }: Props) {
   const router = useRouter();
   const { run, pending, error } = useAction();
@@ -167,9 +170,15 @@ export default function TaskForm({
               id="customer"
               name="customer"
               className="field"
+              list="customers"
               defaultValue={task?.customer ?? ""}
               placeholder="ТОВ «Автомир»"
             />
+            <datalist id="customers">
+              {customers.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
         </div>
 

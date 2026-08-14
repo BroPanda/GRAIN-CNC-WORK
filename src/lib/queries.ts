@@ -79,6 +79,20 @@ export function listMaterials(): Promise<Material[]> {
   return queryAll<Material>("SELECT * FROM materials ORDER BY sort, name");
 }
 
+/**
+ * Замовники для підказок у формі. Окремого довідника не тримаємо — список
+ * сам збирається з уже заведених задач, тож нового замовника не треба
+ * нікуди вносити: вписали раз, далі він підказується. Спершу ті, з ким
+ * працюють найчастіше.
+ */
+export async function listCustomers(): Promise<string[]> {
+  const rows = await queryAll<{ customer: string }>(
+    `SELECT customer FROM tasks WHERE customer <> ''
+     GROUP BY customer ORDER BY COUNT(*) DESC, customer LIMIT 200`
+  );
+  return rows.map((r) => r.customer);
+}
+
 export function getUser(id: number): Promise<User | null> {
   return queryOne<User>("SELECT * FROM users WHERE id = ?", id);
 }
