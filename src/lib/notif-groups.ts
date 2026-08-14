@@ -60,16 +60,25 @@ export function bucketForType(type: string): NotifBucket {
   return hit ?? "other";
 }
 
+/** Людина свідомо вимкнула всі категорії — не плутати з «ще не налаштовував». */
+export const TG_NONE = "none";
+
 /**
- * Категорії, які людина отримує в Telegram. У базі це рядок через кому, але
- * новачок має отримувати все — тому за замовчуванням там стоїть позначка
- * «all». Списком її не записуємо свідомо: інакше поява нової категорії
- * оминула б тих, хто налаштувався давно.
+ * Категорії, які людина отримує в Telegram. У базі це рядок через кому.
+ *
+ * Порожньо або «all» — усе: новачок має отримувати сповіщення з першого дня,
+ * не шукаючи, де їх увімкнути. Щоб «нічого» відрізнялося від «ще не чіпав»,
+ * повне вимкнення пишеться окремим словом «none» — інакше ті, кому колонку
+ * додала міграція, назавжди лишились би без сповіщень.
+ *
+ * Списком «усе» не записуємо свідомо: поява нової категорії оминула б тих,
+ * хто налаштувався давно.
  */
 export function tgBuckets(value: string | null | undefined): NotifBucket[] {
   const all = NOTIF_GROUPS.filter((g): g is NotifBucket => g !== "all");
-  if (value === "all") return all;
-  const chosen = (value ?? "").split(",").filter(Boolean);
+  if (value === TG_NONE) return [];
+  if (!value || value === "all") return all;
+  const chosen = value.split(",").filter(Boolean);
   return all.filter((b) => chosen.includes(b));
 }
 

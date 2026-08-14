@@ -19,7 +19,13 @@ import {
 } from "./notify";
 import { plural } from "./format";
 import { normalizePhone } from "./phone";
-import { NOTIF_GROUPS, type NotifGroup, isNotifGroup, tgBuckets } from "./notif-groups";
+import {
+  NOTIF_GROUPS,
+  TG_NONE,
+  type NotifGroup,
+  isNotifGroup,
+  tgBuckets,
+} from "./notif-groups";
 import { deleteStoredFile, saveUploadedFile, statBlob } from "./storage";
 import { extOf, kindForExt } from "./storage-shared";
 import {
@@ -876,9 +882,10 @@ export async function setTelegramNotify(
       on ? current.add(bucket) : current.delete(bucket);
     }
 
+    const chosen = all.filter((g) => current.has(g));
     await run(
       "UPDATE users SET tg_buckets = ? WHERE id = ?",
-      all.filter((g) => current.has(g)).join(","),
+      chosen.length ? chosen.join(",") : TG_NONE,
       user.id
     );
     refresh();

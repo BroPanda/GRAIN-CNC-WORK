@@ -1,5 +1,11 @@
 import { queryAll, run } from "./db";
-import { type NotifGroup, bucketForType, groupFilter, tgBuckets } from "./notif-groups";
+import {
+  TG_NONE,
+  type NotifGroup,
+  bucketForType,
+  groupFilter,
+  tgBuckets,
+} from "./notif-groups";
 import { appUrl, botToken, sendMessage } from "./telegram";
 import type { Task, User } from "./types";
 
@@ -156,8 +162,9 @@ async function sendToTelegram(
     tg_self: number;
   }>(
     `SELECT id, telegram_id, tg_buckets, tg_self FROM users
-      WHERE id IN (${holes}) AND telegram_id IS NOT NULL AND tg_buckets <> ''`,
-    ...ids
+      WHERE id IN (${holes}) AND telegram_id IS NOT NULL AND tg_buckets <> ?`,
+    ...ids,
+    TG_NONE
   );
   const chats = rows
     .filter((r) => tgBuckets(r.tg_buckets).includes(bucket))
