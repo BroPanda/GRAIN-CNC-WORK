@@ -6,6 +6,7 @@ import TaskCard from "@/components/TaskCard";
 import TaskActions from "@/components/TaskActions";
 import { abilitiesFor } from "@/lib/abilities";
 import QueueList from "@/components/QueueList";
+import Section from "@/components/Section";
 import { IconClock, IconPlus, IconRework } from "@/components/Icons";
 
 type Filter = "all" | "mine" | "hot";
@@ -97,6 +98,7 @@ export default async function QueuePage({
 
       {inProgress.length > 0 && (
         <Section
+          id="in-progress"
           title="В роботі зараз"
           icon={<IconClock className="h-4 w-4" />}
           count={inProgress.length}
@@ -113,12 +115,13 @@ export default async function QueuePage({
         </Section>
       )}
 
-      <Section title="У черзі" count={queued.length}>
+      <Section id="queued" title="У черзі" count={queued.length}>
         <QueueList tasks={queued} me={me} abilities={abilities} />
       </Section>
 
       {rework.length > 0 && (
         <Section
+          id="rework"
           title="На доопрацюванні"
           icon={<IconRework className="h-4 w-4" />}
           count={rework.length}
@@ -160,35 +163,5 @@ function Stat({
       <div className={`text-xl font-bold ${tones[tone]}`}>{value}</div>
       <div className="text-[11px] whitespace-nowrap text-ink-dim uppercase">{label}</div>
     </div>
-  );
-}
-
-function Section({
-  title,
-  count,
-  icon,
-  hint,
-  children,
-}: {
-  title: string;
-  count: number;
-  icon?: React.ReactNode;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mb-6">
-      <div className="mb-2.5 flex items-center gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-bold tracking-wide text-ink-muted uppercase">
-          {icon}
-          {title}
-        </h2>
-        <span className="rounded-full bg-white/8 px-2 py-0.5 text-xs font-bold text-ink-dim">
-          {count}
-        </span>
-      </div>
-      {hint && <p className="mb-2.5 text-xs text-ink-dim">{hint}</p>}
-      {children}
-    </section>
   );
 }
