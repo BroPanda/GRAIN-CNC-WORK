@@ -112,6 +112,13 @@ export interface Task {
   finished_at: string | null;
 }
 
+export interface Material {
+  id: number;
+  name: string;
+  sort: number;
+  created_at: string;
+}
+
 export interface TaskFile {
   id: number;
   task_id: number;

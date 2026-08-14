@@ -9,20 +9,6 @@ import { useAction } from "./useAction";
 import { uploadToBlob } from "./uploadToBlob";
 import { IconCube, IconImage, IconPaperclip, IconX } from "./Icons";
 
-const MATERIALS = [
-  "ПВХ",
-  "Акрил",
-  "Композит (АКП)",
-  "Фанера",
-  "ЛДСП / МДФ",
-  "Дерево",
-  "XPS / пінопласт",
-  "Полікарбонат",
-  "Алюміній",
-  "Латунь",
-  "Оргскло",
-];
-
 interface Props {
   me: User;
   millers: User[];
@@ -32,9 +18,18 @@ interface Props {
   directUpload: boolean;
   /** Чи показувати поле бюджету (право `can_see_budget`). */
   canSeeBudget: boolean;
+  /** Довідник матеріалів — підказки в полі «Матеріал». */
+  materials: string[];
 }
 
-export default function TaskForm({ me, millers, task, directUpload, canSeeBudget }: Props) {
+export default function TaskForm({
+  me,
+  millers,
+  task,
+  directUpload,
+  canSeeBudget,
+  materials,
+}: Props) {
   const router = useRouter();
   const { run, pending, error } = useAction();
   const formRef = useRef<HTMLFormElement>(null);
@@ -108,10 +103,10 @@ export default function TaskForm({ me, millers, task, directUpload, canSeeBudget
               className="field"
               list="materials"
               defaultValue={task?.material ?? ""}
-              placeholder="ПВХ"
+              placeholder={materials[0] ?? "ПВХ"}
             />
             <datalist id="materials">
-              {MATERIALS.map((m) => (
+              {materials.map((m) => (
                 <option key={m} value={m} />
               ))}
             </datalist>

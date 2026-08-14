@@ -74,6 +74,16 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, queue_pos);
 
+/* Довідник матеріалів: підказки у формі задачі. Список веде цех — додає свої,
+   прибирає ті, з якими більше не працює. У задачі зберігається сам текст, а
+   не посилання: перейменування матеріалу не має переписувати давні задачі. */
+CREATE TABLE IF NOT EXISTS materials (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT    NOT NULL UNIQUE,
+  sort       INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS task_files (
   id            SERIAL PRIMARY KEY,
   task_id       INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -145,6 +155,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tgid ON users(telegram_id) WHERE tel
 CREATE INDEX IF NOT EXISTS idx_login_tokens_user ON login_tokens(user_id);
 `;
 
+/** Матеріали цеху — заливаються, якщо довідник порожній. */
+const SEED_MATERIALS = `
+INSERT INTO materials (name, sort)
+SELECT * FROM (VALUES
+  ('ПВХ', 10), ('Композит', 20), ('Акрил білий', 30), ('Акрил (кольоровий)', 40),
+  ('Поліацеталь', 50), ('HPL-панелі', 60), ('ДСП', 70), ('МДФ', 80),
+  ('ЛДСП', 90), ('ЛМДФ', 100), ('Фанера', 110), ('Пластик', 120),
+  ('Масив деревини', 130), ('Полікарбонат', 140), ('Текстоліт', 150),
+  ('Скловолокно', 160), ('Алюміній', 170), ('Пінопласт', 180)
+) AS seed
+WHERE NOT EXISTS (SELECT 1 FROM materials);
+`;
+
 /** Початкова команда FREZALVIV — створюється, якщо таблиця користувачів порожня. */
 const SEED_TEAM = `
 INSERT INTO users (name, role, job_title, can_create_tasks, can_edit_tasks,
@@ -199,6 +222,7 @@ function ensureSchema(): Promise<void> {
         await client.query(SCHEMA);
         await client.query(MIGRATIONS);
         await client.query(SEED_TEAM);
+        await client.query(SEED_MATERIALS);
       } finally {
         await client.query("SELECT pg_advisory_unlock(727001)");
       }

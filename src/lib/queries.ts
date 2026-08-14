@@ -2,6 +2,7 @@ import { can } from "./auth";
 import { count, queryAll, queryOne } from "./db";
 import { NOTIF_GROUPS, type NotifGroup, bucketForType, groupFilter } from "./notif-groups";
 import type {
+  Material,
   Notification,
   Status,
   Task,
@@ -71,6 +72,11 @@ export function listModelers(): Promise<User[]> {
     `SELECT * FROM users WHERE role IN ('modeler','owner') AND is_active = 1
      ORDER BY CASE role WHEN 'modeler' THEN 0 ELSE 1 END, name`
   );
+}
+
+/** Довідник матеріалів — підказки у формі задачі. */
+export function listMaterials(): Promise<Material[]> {
+  return queryAll<Material>("SELECT * FROM materials ORDER BY sort, name");
 }
 
 export function getUser(id: number): Promise<User | null> {

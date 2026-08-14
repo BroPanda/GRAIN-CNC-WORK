@@ -11,6 +11,7 @@ import {
   IconArchive,
   IconBell,
   IconChart,
+  IconCube,
   IconPlus,
   IconQueue,
   IconTeam,
@@ -23,6 +24,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const unread = await unreadCount(user.id);
   const showTeam = can(user, "can_manage_team");
   const showCreate = can(user, "can_create_tasks");
+  // довідник матеріалів веде той, хто заводить чи редагує задачі
+  const showMaterials = showCreate || can(user, "can_edit_tasks");
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[1600px]">
@@ -58,6 +61,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <NavLink href="/archive" label="Архів" variant="side">
             <IconArchive />
           </NavLink>
+          {showMaterials && (
+            <NavLink href="/materials" label="Матеріали" variant="side">
+              <IconCube />
+            </NavLink>
+          )}
           {showTeam && (
             <NavLink href="/team" label="Команда" variant="side">
               <IconTeam />

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { can, requireUser } from "@/lib/auth";
-import { getTask, listMillers } from "@/lib/queries";
+import { getTask, listMaterials, listMillers } from "@/lib/queries";
 import { directUploadEnabled } from "@/lib/storage";
 import TaskForm from "@/components/TaskForm";
 
@@ -26,6 +26,7 @@ export default async function EditTaskPage({ params }: { params: Promise<{ id: s
       <TaskForm
         me={me}
         millers={await listMillers()}
+        materials={(await listMaterials()).map((m) => m.name)}
         task={task}
         directUpload={directUploadEnabled()}
         canSeeBudget={can(me, "can_see_budget")}

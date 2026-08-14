@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { can, requireUser } from "@/lib/auth";
-import { listMillers } from "@/lib/queries";
+import { listMaterials, listMillers } from "@/lib/queries";
 import { directUploadEnabled } from "@/lib/storage";
 import TaskForm from "@/components/TaskForm";
 
@@ -17,6 +17,7 @@ export default async function NewTaskPage() {
       <TaskForm
         me={me}
         millers={await listMillers()}
+        materials={(await listMaterials()).map((m) => m.name)}
         directUpload={directUploadEnabled()}
         canSeeBudget={can(me, "can_see_budget")}
       />

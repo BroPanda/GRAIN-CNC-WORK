@@ -833,6 +833,70 @@ export async function purgeOldFiles(months: number): Promise<ActionResult> {
   }
 }
 
+/* ------------------------------------------------------------- матеріали */
+
+/**
+ * Довідник матеріалів веде цех. У задачі зберігається сам текст, а не
+ * посилання на рядок довідника — тому перейменування чи видалення матеріалу
+ * не чіпає давні задачі, у них лишається те, з чим тоді працювали.
+ */
+export async function addMaterial(name: string): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    assertCan(user, "can_edit_tasks");
+    const value = name.trim();
+    if (!value) throw new Error("Вкажіть назву матеріалу");
+
+    const exists = await queryOne<{ id: number }>(
+      "SELECT id FROM materials WHERE lower(name) = lower(?)",
+      value
+    );
+    if (exists) throw new Error("Такий матеріал уже є в списку");
+
+    // нові додаються в кінець
+    const last = await count("SELECT COALESCE(MAX(sort), 0)::int AS n FROM materials");
+    await run("INSERT INTO materials (name, sort) VALUES (?, ?)", value, last + 10);
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function renameMaterial(id: number, name: string): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    assertCan(user, "can_edit_tasks");
+    const value = name.trim();
+    if (!value) throw new Error("Вкажіть назву матеріалу");
+
+    const clash = await queryOne<{ id: number }>(
+      "SELECT id FROM materials WHERE lower(name) = lower(?) AND id <> ?",
+      value,
+      id
+    );
+    if (clash) throw new Error("Такий матеріал уже є в списку");
+
+    await run("UPDATE materials SET name = ? WHERE id = ?", value, id);
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function deleteMaterial(id: number): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    assertCan(user, "can_edit_tasks");
+    await run("DELETE FROM materials WHERE id = ?", id);
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 /* ------------------------------------------------------- сповіщення / команда */
 
 export async function readAllNotifications(): Promise<ActionResult> {
