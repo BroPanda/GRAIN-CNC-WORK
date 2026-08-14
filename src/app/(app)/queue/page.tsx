@@ -86,13 +86,15 @@ export default async function QueuePage({
         <Stat label="Готово за тиждень" value={stats.done_week} tone="ok" />
       </div>
 
-      {/* Фільтри */}
-      <div className="mb-5 inline-flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
+      {/* Фільтри — на всю ширину: три рівні вкладки, у які легко влучити
+          пальцем на телефоні */}
+      <div className="mb-5 flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
         {FILTERS.map((item) => (
           <Link
             key={item.key}
             href={item.key === "all" ? "/queue" : `/queue?f=${item.key}`}
-            className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${
+            aria-current={filter === item.key ? "page" : undefined}
+            className={`flex-1 rounded-lg px-3.5 py-2 text-center text-sm font-semibold transition ${
               filter === item.key ? "bg-gold-500 text-navy-950" : "text-ink-muted hover:text-ink"
             }`}
           >
