@@ -1,16 +1,16 @@
 "use client";
 
 /**
- * Екран налаштувань сповіщень, зроблений як у Telegram: секції зі списками
- * рядків, у кожному рядку тумблер. Звук живе в браузері (у цеху й удома в
- * однієї людини різні побажання), а дублювання в бот — у базі, бо бот пише
- * людині, а не вкладці.
+ * Налаштування сповіщень: два блоки з кнопками-таблетками — звук у браузері
+ * і дублювання в Telegram. Натиснута кнопка = категорія ввімкнена.
+ *
+ * Звук живе в localStorage (у цеху й удома в однієї людини різні побажання),
+ * а вибір категорій для бота — у базі, бо бот пише людині, а не вкладці.
  */
 
 import { useRouter } from "next/navigation";
 import {
   NOTIF_GROUPS,
-  NOTIF_GROUP_ICON,
   NOTIF_GROUP_LABELS,
   type NotifBucket,
   type NotifGroup,
@@ -19,7 +19,7 @@ import { setTelegramNotify, setTelegramSelf } from "@/lib/actions";
 import { useAction } from "./useAction";
 import { useSoundSettings } from "./useSoundSettings";
 import { playNotifSound, primeAudio } from "./notifySound";
-import { IconTelegram } from "./Icons";
+import { IconBell, IconTelegram } from "./Icons";
 
 interface Props {
   /** Категорії, які зараз ідуть у Telegram. */
@@ -32,78 +32,58 @@ interface Props {
   botOn: boolean;
 }
 
-function Switch({
+function Pill({
   on,
   disabled,
-  onChange,
-  label,
+  onClick,
+  children,
+  tone,
 }: {
   on: boolean;
   disabled?: boolean;
-  onChange: () => void;
-  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+  tone: "gold" | "info";
 }) {
+  const active =
+    tone === "gold"
+      ? "border-gold-500/60 bg-gold-500/15 text-gold-300"
+      : "border-info/50 bg-info/15 text-info";
   return (
     <button
       type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
       disabled={disabled}
-      onClick={onChange}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-40 ${
-        on ? "bg-gold-500" : "bg-white/15"
+      onClick={onClick}
+      aria-pressed={on}
+      className={`rounded-xl border px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 ${
+        on ? active : "border-white/10 text-ink-muted hover:border-white/20"
       }`}
     >
-      <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-          on ? "left-[1.375rem]" : "left-0.5"
-        }`}
-      />
+      {children}
     </button>
   );
 }
 
-function Section({
+function Block({
+  icon,
   title,
   hint,
   children,
 }: {
+  icon: React.ReactNode;
   title: string;
   hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="mb-5">
-      <h2 className="mb-1.5 px-1 text-xs font-bold tracking-wide text-ink-dim uppercase">
-        {title}
-      </h2>
-      <div className="card divide-y divide-white/8 overflow-hidden">{children}</div>
-      {hint && <p className="mt-1.5 px-1 text-xs text-ink-dim">{hint}</p>}
-    </section>
-  );
-}
-
-function Row({
-  icon,
-  title,
-  note,
-  children,
-}: {
-  icon?: React.ReactNode;
-  title: string;
-  note?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-3.5 py-2.5">
-      {icon && <span className="w-5 shrink-0 text-center">{icon}</span>}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{title}</span>
-        {note && <span className="block text-xs text-ink-dim">{note}</span>}
-      </span>
+    <section className="card mb-4 p-3.5">
+      <div className="mb-2 flex items-center gap-2">
+        {icon}
+        <h2 className="text-sm font-bold">{title}</h2>
+      </div>
+      {hint && <p className="mb-2.5 text-xs text-ink-dim">{hint}</p>}
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -113,18 +93,29 @@ export default function NotifSettings({ enabled, linked, self, botOn }: Props) {
   const sound = useSoundSettings();
 
   const buckets = NOTIF_GROUPS.filter((g): g is NotifBucket => g !== "all");
+
   const tgOn = (group: NotifGroup) =>
     group === "all" ? buckets.every((b) => enabled.includes(b)) : enabled.includes(group);
-
   const toggleTg = (group: NotifGroup) =>
     run(() => setTelegramNotify(group, !tgOn(group)), () => router.refresh());
 
-  const toggleSound = (bucket: NotifBucket) => {
-    const willHear = sound.isMuted(bucket);
-    sound.toggleBucket(bucket);
+  const soundOn = (group: NotifGroup) =>
+    sound.ready && (group === "all" ? !sound.master : !sound.master && !sound.isMuted(group));
+
+  const toggleSound = (group: NotifGroup) => {
+    const willHear = !soundOn(group);
+    if (group === "all") {
+      sound.toggleMaster();
+    } else {
+      // глушник «усіх» переважує окремі категорії — знімаємо і його
+      if (sound.master) sound.toggleMaster();
+      if (!willHear || sound.isMuted(group as NotifBucket)) {
+        sound.toggleBucket(group as NotifBucket);
+      }
+    }
     if (willHear) {
       primeAudio();
-      playNotifSound(bucket); // одразу чути, який саме сигнал увімкнули
+      playNotifSound(group === "all" ? "comment" : (group as NotifBucket));
     }
   };
 
@@ -136,94 +127,74 @@ export default function NotifSettings({ enabled, linked, self, botOn }: Props) {
         </p>
       )}
 
-      <Section
+      <Block
+        icon={<IconBell className="h-4 w-4 text-gold-400" />}
         title="Звук у застосунку"
-        hint="Налаштування браузера: на телефоні й на комп'ютері воно своє."
+        hint="Чутно, поки відкритий сайт. Налаштування браузера: на телефоні й на комп'ютері воно своє."
       >
-        <Row title="Звук сповіщень" note={sound.master ? "вимкнено" : "увімкнено"}>
-          <Switch
-            on={sound.ready && !sound.master}
-            label="Звук сповіщень"
-            onChange={() => {
-              const willHear = sound.master;
-              sound.toggleMaster();
-              if (willHear) {
-                primeAudio();
-                playNotifSound("comment");
-              }
-            }}
-          />
-        </Row>
-        {buckets.map((bucket) => (
-          <Row
-            key={bucket}
-            icon={NOTIF_GROUP_ICON[bucket]}
-            title={NOTIF_GROUP_LABELS[bucket]}
-          >
-            <Switch
-              on={sound.ready && !sound.master && !sound.isMuted(bucket)}
-              disabled={sound.master}
-              label={`Звук: ${NOTIF_GROUP_LABELS[bucket]}`}
-              onChange={() => toggleSound(bucket)}
-            />
-          </Row>
-        ))}
-      </Section>
+        <ul className="flex flex-wrap gap-1.5">
+          {NOTIF_GROUPS.map((group) => (
+            <li key={group}>
+              <Pill tone="gold" on={soundOn(group)} onClick={() => toggleSound(group)}>
+                {NOTIF_GROUP_LABELS[group]}
+              </Pill>
+            </li>
+          ))}
+        </ul>
+      </Block>
 
-      <Section
+      <Block
+        icon={<IconTelegram className="h-4 w-4 text-info" />}
         title="Дублювати в Telegram"
         hint={
           botOn && linked
-            ? "Бот надсилає особисто вам, окрім ваших власних дій."
+            ? "Обрані категорії бот надсилатиме особисто вам, окрім ваших власних дій."
             : undefined
         }
       >
         {!botOn ? (
-          <Row title="Бота не підключено" note="Дублювати нікуди" >
-            <IconTelegram className="h-5 w-5 text-ink-dim" />
-          </Row>
+          <p className="text-sm text-ink-muted">Бота не підключено — дублювати нікуди.</p>
         ) : !linked ? (
-          <Row title="Спершу увійдіть через бота" note="Інакше йому нікуди писати">
-            <IconTelegram className="h-5 w-5 text-ink-dim" />
-          </Row>
+          <p className="text-sm text-ink-muted">
+            Спершу увійдіть через бота — інакше йому нікуди писати.
+          </p>
         ) : (
           <>
-            <Row title="Усі категорії">
-              <Switch
-                on={tgOn("all")}
+            <ul className="flex flex-wrap gap-1.5">
+              {NOTIF_GROUPS.map((group) => (
+                <li key={group}>
+                  <Pill
+                    tone="info"
+                    on={tgOn(group)}
+                    disabled={pending}
+                    onClick={() => toggleTg(group)}
+                  >
+                    {NOTIF_GROUP_LABELS[group]}
+                  </Pill>
+                </li>
+              ))}
+            </ul>
+
+            <label className="mt-3 flex cursor-pointer items-center gap-2.5 border-t border-white/8 pt-3 text-sm">
+              <input
+                type="checkbox"
+                className="h-5 w-5 accent-[#f2a825]"
+                checked={self}
                 disabled={pending}
-                label="Дублювати всі категорії"
-                onChange={() => toggleTg("all")}
+                onChange={(e) =>
+                  run(() => setTelegramSelf(e.target.checked), () => router.refresh())
+                }
               />
-            </Row>
-            {buckets.map((bucket) => (
-              <Row
-                key={bucket}
-                icon={NOTIF_GROUP_ICON[bucket]}
-                title={NOTIF_GROUP_LABELS[bucket]}
-              >
-                <Switch
-                  on={tgOn(bucket)}
-                  disabled={pending}
-                  label={`У Telegram: ${NOTIF_GROUP_LABELS[bucket]}`}
-                  onChange={() => toggleTg(bucket)}
-                />
-              </Row>
-            ))}
-            <Row
-              title="Мої власні дії"
-              note="Повний журнал: видно навіть те, що зробили ви самі"
-            >
-              <Switch
-                on={self}
-                disabled={pending}
-                label="Надсилати й мої власні дії"
-                onChange={() => run(() => setTelegramSelf(!self), () => router.refresh())}
-              />
-            </Row>
+              <span>
+                Надсилати й мої власні дії
+                <span className="block text-xs text-ink-dim">
+                  Повний журнал у чаті: видно навіть те, що зробили ви самі.
+                </span>
+              </span>
+            </label>
           </>
         )}
-      </Section>
+      </Block>
     </>
   );
 }
