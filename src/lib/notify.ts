@@ -1,5 +1,6 @@
 import { queryAll, run } from "./db";
 import {
+  NOTIF_GROUP_LABELS,
   TG_NONE,
   type NotifGroup,
   bucketForType,
@@ -178,13 +179,17 @@ async function sendToTelegram(
   );
   const t = task[0];
 
-  // назва задачі окремим рядком, суть — нижче: у стрічці чатів видно головне
-  const head = t
-    ? `${BUCKET_ICON[bucket]} <b>${esc(t.code ?? `#${taskId}`)}</b> — ${esc(t.title)}`
-    : `${BUCKET_ICON[bucket]} <b>Задача #${taskId}</b>`;
-  const customer = t?.customer ? `\n🏭 ${esc(t.customer)}` : "";
+  // у стрічці чатів видно лише перші рядки, тому зверху те, за чим людину
+  // впізнає роботу: замовник, під ним — що саме робимо. Код задачі тут не
+  // потрібен, він ні про що не каже; хто відкриє задачу — побачить його там
+  const head = [
+    `🏭 <b>${esc(t?.customer || "Без замовника")}</b>`,
+    esc(t?.title ?? `Задача #${taskId}`),
+    "",
+    `${BUCKET_ICON[bucket]} <b>${NOTIF_GROUP_LABELS[bucket]}</b>`,
+  ].join("\n");
 
-  // у тексті сповіщення код і назва вже є — у заголовку вони повторились би
+  // у тексті сповіщення код і назва вже є — із заголовком вони повторились би
   const label = t ? taskLabel({ id: taskId, code: t.code, title: t.title }) : "";
   const body = (label ? text.split(label).join("") : text)
     .replace(/\s{2,}/g, " ")
@@ -192,8 +197,8 @@ async function sendToTelegram(
     .trim();
 
   // «Нова задача» та подібні не називають автора — тоді дописуємо його окремо
-  const who = body.includes(actor.name) ? "" : `\n👤 ${esc(actor.name)}`;
-  const message = `${head}${customer}\n\n${esc(body)}${who}`;
+  const who = body.includes(actor.name) ? "" : ` · ${esc(actor.name)}`;
+  const message = `${head}\n${esc(body)}${who}`;
 
   const keyboard = {
     inline_keyboard: [[{ text: "Відкрити задачу", url: `${appUrl()}/tasks/${taskId}` }]],
