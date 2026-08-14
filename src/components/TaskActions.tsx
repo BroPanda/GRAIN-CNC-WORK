@@ -66,6 +66,8 @@ interface Props {
   abilities: Abilities;
   /** Кому можна віддати доопрацювання — відділ моделювання. */
   modelers?: Pick<User, "id" | "name" | "job_title">[];
+  /** Кому можна віддати задачу назад у чергу — фрезерувальники. */
+  millers?: Pick<User, "id" | "name" | "job_title">[];
   /** Компактний набір для карток у списку. */
   compact?: boolean;
   /** Показувати кнопки зміни місця в черзі. */
@@ -79,6 +81,7 @@ export default function TaskActions({
   me,
   abilities,
   modelers = [],
+  millers = [],
   compact = false,
   showNudge = false,
   nudgeUpDisabled,
@@ -90,6 +93,8 @@ export default function TaskActions({
   const [comment, setComment] = useState("");
   /** 0 — увесь відділ моделювання, інакше id конкретної людини. */
   const [reworkTo, setReworkTo] = useState(0);
+  /** 0 — спільна черга, інакше id фрезерувальника. */
+  const [returnTo, setReturnTo] = useState(0);
 
   const done = () => router.refresh();
   const size = compact ? "btn-sm" : "";
@@ -97,6 +102,8 @@ export default function TaskActions({
   const openDialog = (kind: DialogKind) => {
     setComment("");
     setReworkTo(0);
+    // повертаємо тому, хто задачу й фрезерував — найчастіше саме він і чекає
+    setReturnTo(task.worker_id ?? task.assignee_id ?? 0);
     setDialog(kind);
   };
 
@@ -107,7 +114,7 @@ export default function TaskActions({
       rework: () => sendToRework(task.id, comment, reworkTo || null),
       done: () => completeTask(task.id, comment),
       cancel: () => cancelTask(task.id, comment),
-      return: () => returnToQueue(task.id, comment),
+      return: () => returnToQueue(task.id, comment, returnTo || null),
     } as const;
     run(map[kind], () => {
       setDialog(null);
@@ -273,6 +280,33 @@ export default function TaskActions({
               {reworkTo
                 ? "Людина отримає особисте сповіщення, задача позначиться її імʼям."
                 : "Побачить увесь відділ — візьме той, хто вільний."}
+            </p>
+          </div>
+        )}
+
+        {dialog === "return" && millers.length > 0 && (
+          <div className="mb-3">
+            <label className="label" htmlFor="return-to">
+              Кому
+            </label>
+            <select
+              id="return-to"
+              className="field"
+              value={returnTo}
+              onChange={(e) => setReturnTo(Number(e.target.value))}
+            >
+              <option value={0}>Спільна черга — усі фрезерувальники</option>
+              {millers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                  {m.job_title ? ` · ${m.job_title}` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-ink-dim">
+              {returnTo
+                ? "Задача закріпиться за цією людиною, вона отримає особисте сповіщення."
+                : "Задачу побачать усі фрезерувальники — візьме той, хто вільний."}
             </p>
           </div>
         )}

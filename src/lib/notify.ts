@@ -79,10 +79,20 @@ export async function notify(
   actor: User,
   taskId: number,
   type: EventType,
-  text: string
+  text: string,
+  /**
+   * Пропустити сповіщення й самому собі. Потрібно, коли людина свідомо
+   * адресує задачу собі — це вже не «відлуння власної дії», а нагадування,
+   * і воно має прийти, зокрема в Telegram.
+   */
+  allowSelf = false
 ): Promise<void> {
-  const targets = [...new Set(userIds)].filter((id) => id !== actor.id); // собі не сповіщаємо
-  if (!targets.length) return;
+  const all = [...new Set(userIds)];
+  const targets = allowSelf ? all : all.filter((id) => id !== actor.id);
+  if (!targets.length) {
+    await sendToTelegram([], actor, taskId, type, text);
+    return;
+  }
 
   // один INSERT на всіх адресатів
   const values = targets.map(() => "(?, ?, ?, ?, ?)").join(", ");
@@ -125,14 +135,22 @@ async function sendToTelegram(
   if (!botToken()) return;
 
   const bucket = bucketForType(type);
-  const holes = targets.map(() => "?").join(", ");
-  const rows = await queryAll<{ telegram_id: number; tg_buckets: string }>(
-    `SELECT telegram_id, tg_buckets FROM users
+  // автора беремо теж: він отримає копію, якщо сам про це попросив (tg_self)
+  const ids = [...new Set([...targets, actor.id])];
+  const holes = ids.map(() => "?").join(", ");
+  const rows = await queryAll<{
+    id: number;
+    telegram_id: number;
+    tg_buckets: string;
+    tg_self: number;
+  }>(
+    `SELECT id, telegram_id, tg_buckets, tg_self FROM users
       WHERE id IN (${holes}) AND telegram_id IS NOT NULL AND tg_buckets <> ''`,
-    ...targets
+    ...ids
   );
   const chats = rows
     .filter((r) => tgBuckets(r.tg_buckets).includes(bucket))
+    .filter((r) => r.id !== actor.id || r.tg_self === 1)
     .map((r) => r.telegram_id);
   if (!chats.length) return;
 

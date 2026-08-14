@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { count, insertReturningId, queryAll, queryOne, run, transaction } from "./db";
 import { assertCan, can, endSession, requireUser, startSession } from "./auth";
 import { botConfigured } from "./telegram";
-import { canSeeTask, filesToPurge, getTaskRaw, listModelers } from "./queries";
+import { canSeeTask, filesToPurge, getTaskRaw, listMillers, listModelers } from "./queries";
 import {
   type EventType,
   managementAudience,
@@ -321,7 +321,11 @@ export async function sendToRework(
         user,
         taskId,
         "rework",
-        `${user.name} передав вам ${taskLabel(task)} на доопрацювання: ${reason}`
+        target.id === user.id
+          ? `Ви лишили собі ${taskLabel(task)} на доопрацювання: ${reason}`
+          : `${user.name} передав вам ${taskLabel(task)} на доопрацювання: ${reason}`,
+        // адресував собі — це нагадування, а не відлуння власної дії
+        target.id === user.id
       );
       await notify(
         management.filter((id) => id !== target.id),
@@ -347,8 +351,16 @@ export async function sendToRework(
   }
 }
 
-/** Повернути доопрацьовану задачу в чергу (власник / моделювання). */
-export async function returnToQueue(taskId: number, comment: string): Promise<ActionResult> {
+/**
+ * Повернути доопрацьовану задачу в чергу (власник / моделювання).
+ * `to` — id фрезерувальника, за яким її закріпити; null — у спільну чергу,
+ * звідки задачу візьме той, хто вільний.
+ */
+export async function returnToQueue(
+  taskId: number,
+  comment: string,
+  to: number | null = null
+): Promise<ActionResult> {
   try {
     const user = await requireUser();
     assertCan(user, "can_edit_tasks");
@@ -356,32 +368,49 @@ export async function returnToQueue(taskId: number, comment: string): Promise<Ac
     if (!task) throw new Error("Задачу не знайдено");
     if (task.status !== "rework") throw new Error("Задача не на доопрацюванні");
 
+    let target: User | null = null;
+    if (to !== null) {
+      target = (await listMillers()).find((m) => m.id === to) ?? null;
+      if (!target) throw new Error("Оберіть, кому саме віддати задачу");
+    }
+
     await run(
-      "UPDATE tasks SET status = 'queued', rework_to = NULL, updated_at = now() WHERE id = ?",
+      `UPDATE tasks SET status = 'queued', rework_to = NULL, assignee_id = ?,
+         updated_at = now() WHERE id = ?`,
+      target?.id ?? null,
       taskId
     );
 
-    await recordEvent(taskId, user.id, "returned", comment.trim());
+    await recordEvent(
+      taskId,
+      user.id,
+      "returned",
+      target ? `${target.name}: ${comment.trim()}`.trim() : comment.trim()
+    );
 
-    // фрезерувальнику, який відправляв задачу, пишемо особисто — саме він чекає
-    const waiting = task.worker_id;
+    // той, кому задача адресована особисто, має знати першим
+    const waiting = target?.id ?? task.worker_id;
     if (waiting) {
       await notify(
         [waiting],
         user,
         taskId,
         "returned",
-        `${user.name} доопрацював ${taskLabel(task)} — можна продовжувати`
+        `${user.name} доопрацював ${taskLabel(task)} — можна продовжувати`,
+        waiting === user.id
       );
     }
     await notify(
-      [...(await millerAudience(task)), ...(await managementAudience())].filter(
-        (id) => id !== waiting
-      ),
+      [
+        ...(target ? [] : await millerAudience({ assignee_id: null })),
+        ...(await managementAudience()),
+      ].filter((id) => id !== waiting),
       user,
       taskId,
       "returned",
-      `${user.name} доопрацював і повернув у чергу ${taskLabel(task)}`
+      target
+        ? `${user.name} доопрацював ${taskLabel(task)} і закріпив за ${target.name}`
+        : `${user.name} доопрацював і повернув у чергу ${taskLabel(task)}`
     );
 
     refresh(taskId);
@@ -849,6 +878,25 @@ export async function setTelegramNotify(
       all.filter((g) => current.has(g)).join(","),
       user.id
     );
+    refresh();
+    return OK;
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * Отримувати в Telegram і власні дії. Для власника це журнал усього, що
+ * робиться в цеху, включно з тим, що зробив він сам; у застосунку такі
+ * сповіщення не зʼявляються — там своє відлуння ні до чого.
+ */
+export async function setTelegramSelf(on: boolean): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    if (!user.telegram_id) {
+      throw new Error("Спершу увійдіть через бота — інакше йому нікуди писати");
+    }
+    await run("UPDATE users SET tg_self = ? WHERE id = ?", on ? 1 : 0, user.id);
     refresh();
     return OK;
   } catch (e) {

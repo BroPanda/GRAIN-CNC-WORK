@@ -8,7 +8,7 @@
 
 import { useRouter } from "next/navigation";
 import { NOTIF_GROUPS, NOTIF_GROUP_LABELS, type NotifGroup } from "@/lib/notif-groups";
-import { setTelegramNotify } from "@/lib/actions";
+import { setTelegramNotify, setTelegramSelf } from "@/lib/actions";
 import { useAction } from "./useAction";
 import { IconTelegram } from "./Icons";
 
@@ -17,9 +17,11 @@ interface Props {
   enabled: string[];
   /** Чи людина взагалі заходила через бота: без цього писати нікуди. */
   linked: boolean;
+  /** Чи надсилати в бот і власні дії. */
+  self: boolean;
 }
 
-export default function TelegramNotify({ enabled, linked }: Props) {
+export default function TelegramNotify({ enabled, linked, self }: Props) {
   const router = useRouter();
   const { run, pending, error } = useAction();
 
@@ -68,6 +70,24 @@ export default function TelegramNotify({ enabled, linked }: Props) {
               );
             })}
           </ul>
+
+          <label className="mt-3 flex cursor-pointer items-center gap-2.5 border-t border-white/8 pt-3 text-sm">
+            <input
+              type="checkbox"
+              className="h-5 w-5 accent-[#f2a825]"
+              checked={self}
+              disabled={pending}
+              onChange={(e) =>
+                run(() => setTelegramSelf(e.target.checked), () => router.refresh())
+              }
+            />
+            <span>
+              Надсилати й мої власні дії
+              <span className="block text-xs text-ink-dim">
+                Повний журнал у чаті: видно навіть те, що зробили ви самі.
+              </span>
+            </span>
+          </label>
         </>
       )}
 

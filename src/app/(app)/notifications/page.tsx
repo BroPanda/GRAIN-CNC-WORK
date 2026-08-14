@@ -57,6 +57,7 @@ export default async function NotificationsPage({
         <TelegramNotify
           enabled={tgBuckets(me.tg_buckets)}
           linked={me.telegram_id !== null}
+          self={me.tg_self === 1}
         />
       )}
 

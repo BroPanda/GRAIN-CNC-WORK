@@ -112,7 +112,13 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
 
         {/* Дії */}
         <div className="mt-4 flex flex-wrap gap-2 border-t border-white/8 pt-4">
-          <TaskActions task={task} me={me} abilities={abilities} modelers={modelers} />
+          <TaskActions
+            task={task}
+            me={me}
+            abilities={abilities}
+            modelers={modelers}
+            millers={millers}
+          />
         </div>
       </div>
 

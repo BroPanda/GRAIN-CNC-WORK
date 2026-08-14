@@ -77,6 +77,8 @@ export interface User {
   can_see_budget: number;
   /** Категорії сповіщень для дублювання в Telegram, через кому. */
   tg_buckets: string;
+  /** 1 — надсилати в Telegram і власні дії (журнал для власника). */
+  tg_self: number;
   created_at: string;
 }
 

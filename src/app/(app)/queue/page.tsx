@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { can, requireUser } from "@/lib/auth";
-import { getStats, listModelers, listTasks } from "@/lib/queries";
+import { getStats, listMillers, listModelers, listTasks } from "@/lib/queries";
 import type { TaskListItem } from "@/lib/types";
 import TaskCard from "@/components/TaskCard";
 import TaskActions from "@/components/TaskActions";
@@ -46,12 +46,13 @@ export default async function QueuePage({
     return tasks;
   };
 
-  const [inProgressAll, queuedAll, reworkAll, stats, modelers] = await Promise.all([
+  const [inProgressAll, queuedAll, reworkAll, stats, modelers, millers] = await Promise.all([
     listTasks(me, ["in_progress"]),
     listTasks(me, ["queued"]),
     listTasks(me, ["rework"]),
     getStats(me),
     listModelers(),
+    listMillers(),
   ]);
   const inProgress = apply(inProgressAll);
   const queued = apply(queuedAll);
@@ -118,6 +119,7 @@ export default async function QueuePage({
                     me={me}
                     abilities={abilities}
                     modelers={modelers}
+                    millers={millers}
                     compact
                   />
                 }
@@ -128,7 +130,13 @@ export default async function QueuePage({
       )}
 
       <Section id="queued" title="У черзі" count={queued.length}>
-        <QueueList tasks={queued} me={me} abilities={abilities} modelers={modelers} />
+        <QueueList
+          tasks={queued}
+          me={me}
+          abilities={abilities}
+          modelers={modelers}
+          millers={millers}
+        />
       </Section>
 
       {rework.length > 0 && (
@@ -150,6 +158,7 @@ export default async function QueuePage({
                     me={me}
                     abilities={abilities}
                     modelers={modelers}
+                    millers={millers}
                     compact
                   />
                 }
