@@ -121,7 +121,7 @@ function makeCubeStl() {
     [2, 7, 3], [2, 6, 7], [3, 4, 0], [3, 7, 4],
   ];
   const buf = Buffer.alloc(84 + faces.length * 50);
-  buf.write("GRAIN demo cube", 0);
+  buf.write("FREZALVIV demo cube", 0);
   buf.writeUInt32LE(faces.length, 80);
   let off = 84;
   for (const [a, b, c] of faces) {

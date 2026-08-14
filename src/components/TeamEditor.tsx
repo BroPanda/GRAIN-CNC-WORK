@@ -11,27 +11,33 @@ import {
   type Role,
   type User,
 } from "@/lib/types";
+import { formatPhone } from "@/lib/phone";
 import Dialog from "./Dialog";
 import { useAction } from "./useAction";
 import { IconPlus } from "./Icons";
 
 const ROLES: Role[] = ["owner", "modeler", "miller"];
 
+/** `null` — діалог закритий, `undefined`-поля — режим «новий співробітник». */
+type Editing = User | "new" | null;
+
 export default function TeamEditor({ users, meId }: { users: User[]; meId: number }) {
   const router = useRouter();
   const { run, pending, error } = useAction();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Editing>(null);
 
   const refresh = () => router.refresh();
 
-  const addMember = (e: React.FormEvent<HTMLFormElement>) => {
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     run(() => saveTeamMember(fd), () => {
-      setDialogOpen(false);
+      setEditing(null);
       refresh();
     });
   };
+
+  const member = editing && editing !== "new" ? editing : null;
 
   return (
     <>
@@ -39,7 +45,7 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
         <p className="min-w-0 flex-1 text-sm text-ink-muted">
           Права можна вмикати кожному окремо. Власник завжди має повний доступ.
         </p>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setDialogOpen(true)}>
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => setEditing("new")}>
           <IconPlus className="h-4 w-4" />
           Додати
         </button>
@@ -48,6 +54,13 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
       {error && (
         <p className="mb-3 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">
           {error}
+        </p>
+      )}
+
+      {users.some((u) => u.is_active === 1 && !u.phone) && (
+        <p className="mb-3 rounded-xl border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-ink-muted">
+          <span className="font-semibold text-ink">Не в усіх вказано номер телефону.</span> Вхід у
+          застосунок іде за номером — без нього людина не зайде. Впишіть номери всім, і собі теж.
         </p>
       )}
 
@@ -75,17 +88,40 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
                     {user.job_title ? ` · ${user.job_title}` : ""}
                     {user.telegram_username ? ` · @${user.telegram_username}` : ""}
                   </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    {user.phone ? (
+                      <span className="text-ink-muted">{formatPhone(user.phone)}</span>
+                    ) : (
+                      <span className="text-warn">номер не вказано — вхід неможливий</span>
+                    )}
+                    {user.phone &&
+                      (user.telegram_id ? (
+                        <span className="chip bg-ok/15 text-ok">Telegram підтверджено</span>
+                      ) : (
+                        <span className="chip bg-white/8 text-ink-dim">чекає на вхід у бот</span>
+                      ))}
+                  </div>
                 </div>
-                {user.id !== meId && (
+                <div className="flex shrink-0 gap-2">
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
                     disabled={pending}
-                    onClick={() => run(() => setUserActive(user.id, user.is_active !== 1), refresh)}
+                    onClick={() => setEditing(user)}
                   >
-                    {user.is_active ? "Деактивувати" : "Активувати"}
+                    Змінити
                   </button>
-                )}
+                  {user.id !== meId && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={pending}
+                      onClick={() => run(() => setUserActive(user.id, user.is_active !== 1), refresh)}
+                    >
+                      {user.is_active ? "Деактивувати" : "Активувати"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="mt-3 grid grid-cols-1 gap-1.5 border-t border-white/8 pt-3 sm:grid-cols-2">
@@ -120,19 +156,60 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
         })}
       </div>
 
-      <Dialog open={dialogOpen} title="Новий співробітник" onClose={() => setDialogOpen(false)}>
-        <form onSubmit={addMember} className="flex flex-col gap-3">
+      <Dialog
+        open={editing !== null}
+        title={member ? member.name : "Новий співробітник"}
+        onClose={() => setEditing(null)}
+      >
+        <form key={member?.id ?? "new"} onSubmit={submit} className="flex flex-col gap-3">
+          {member && <input type="hidden" name="id" value={member.id} />}
+          {/* права міняються перемикачами на картці — тут просто переносимо їх як є */}
+          {member &&
+            PERMISSION_KEYS.filter((k) => member[k] === 1).map((k) => (
+              <input key={k} type="hidden" name={k} value="on" />
+            ))}
+
           <div>
             <label className="label" htmlFor="member-name">
               Імʼя *
             </label>
-            <input id="member-name" name="name" className="field" required autoFocus />
+            <input
+              id="member-name"
+              name="name"
+              className="field"
+              required
+              autoFocus
+              defaultValue={member?.name ?? ""}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="member-phone">
+              Телефон *
+            </label>
+            <input
+              id="member-phone"
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              className="field"
+              placeholder="+380671234567"
+              defaultValue={member?.phone ?? ""}
+            />
+            <p className="mt-1 text-xs text-ink-dim">
+              За цим номером людина входить у застосунок: вона підтверджує його в нашому
+              Telegram-боті. Номер має збігатися з номером її акаунта Telegram.
+            </p>
           </div>
           <div>
             <label className="label" htmlFor="member-role">
               Роль
             </label>
-            <select id="member-role" name="role" className="field" defaultValue="miller">
+            <select
+              id="member-role"
+              name="role"
+              className="field"
+              defaultValue={member?.role ?? "miller"}
+            >
               {ROLES.map((role) => (
                 <option key={role} value={role}>
                   {ROLE_LABELS[role]}
@@ -149,23 +226,45 @@ export default function TeamEditor({ users, meId }: { users: User[]; meId: numbe
               name="job_title"
               className="field"
               placeholder="Фрезерування"
+              defaultValue={member?.job_title ?? ""}
             />
           </div>
           <div>
             <label className="label" htmlFor="member-tg">
               Telegram
             </label>
-            <input id="member-tg" name="telegram_username" className="field" placeholder="@nickname" />
+            <input
+              id="member-tg"
+              name="telegram_username"
+              className="field"
+              placeholder="@nickname"
+              defaultValue={member?.telegram_username ?? ""}
+            />
+            <p className="mt-1 text-xs text-ink-dim">
+              Необовʼязково — заповниться саме, коли людина підтвердить номер у боті.
+            </p>
           </div>
           <label className="flex items-center gap-2.5 text-sm">
-            <input type="checkbox" name="is_active" defaultChecked className="h-5 w-5 accent-[#f2a825]" />
+            <input
+              type="checkbox"
+              name="is_active"
+              defaultChecked={member ? member.is_active === 1 : true}
+              className="h-5 w-5 accent-[#f2a825]"
+            />
             Активний
           </label>
-          <p className="text-xs text-ink-dim">
-            Базові права проставляться за роллю — далі можна змінити перемикачами.
-          </p>
+          {!member && (
+            <p className="text-xs text-ink-dim">
+              Базові права проставляться за роллю — далі можна змінити перемикачами.
+            </p>
+          )}
+          {error && (
+            <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">
+              {error}
+            </p>
+          )}
           <button type="submit" className="btn btn-primary" disabled={pending}>
-            {pending ? "Зберігаємо…" : "Додати в команду"}
+            {pending ? "Зберігаємо…" : member ? "Зберегти" : "Додати в команду"}
           </button>
         </form>
       </Dialog>

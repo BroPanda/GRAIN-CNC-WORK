@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { count, insertReturningId, queryAll, queryOne, run, transaction } from "./db";
-import { SESSION_COOKIE, assertCan, can, requireUser } from "./auth";
+import { assertCan, can, endSession, requireUser, startSession } from "./auth";
+import { botConfigured } from "./telegram";
 import { canSeeTask, getTaskRaw } from "./queries";
 import {
   type EventType,
@@ -18,6 +18,7 @@ import {
   taskLabel,
 } from "./notify";
 import { plural } from "./format";
+import { normalizePhone } from "./phone";
 import { type NotifGroup, isNotifGroup } from "./notif-groups";
 import { deleteStoredFile, saveUploadedFile, statBlob } from "./storage";
 import { extOf, kindForExt } from "./storage-shared";
@@ -71,20 +72,19 @@ async function nextCode(): Promise<string> {
 
 /* ------------------------------------------------------------------ сесія */
 
+/**
+ * Вхід вибором зі списку — лише для локальної розробки й автотестів.
+ * Щойно підключено бота, справжній вхід іде через підтвердження номера,
+ * і цей шлях закривається (див. src/app/login/page.tsx).
+ */
 export async function loginAs(userId: number): Promise<void> {
-  const store = await cookies();
-  store.set(SESSION_COOKIE, String(userId), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  if (botConfigured()) throw new Error("Вхід лише через Telegram");
+  await startSession(userId);
   redirect("/queue");
 }
 
 export async function logout(): Promise<void> {
-  const store = await cookies();
-  store.delete(SESSION_COOKIE);
+  await endSession();
   redirect("/login");
 }
 
@@ -740,14 +740,35 @@ export async function saveTeamMember(fd: FormData): Promise<ActionResult> {
     const jobTitle = str(fd, "job_title") || null;
     const isActive = fd.get("is_active") === "on" ? 1 : 0;
 
+    // номер — це ключ від входу, тому перевіряємо його прискіпливо
+    const phoneRaw = str(fd, "phone");
+    const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
+    if (phoneRaw && !phone) throw new Error("Номер не схожий на справжній: приклад +380671234567");
+    if (!phone && botConfigured()) {
+      throw new Error("Вкажіть номер телефону — без нього людина не зможе увійти");
+    }
+    if (phone) {
+      const taken = await queryOne<{ id: number; name: string }>(
+        "SELECT id, name FROM users WHERE phone = ? AND id <> ?",
+        phone,
+        idRaw ? Number(idRaw) : 0
+      );
+      if (taken) throw new Error(`Цей номер уже вказано в ${taken.name}`);
+    }
+
     if (idRaw) {
       const perms = PERMISSION_KEYS.map((k) => (fd.get(k) === "on" ? 1 : 0));
       await run(
-        `UPDATE users SET name = ?, telegram_username = ?, role = ?, job_title = ?, is_active = ?,
+        `UPDATE users SET name = ?, telegram_username = ?,
+           -- змінили номер → стара прив'язка Telegram більше не діє
+           telegram_id = CASE WHEN phone IS DISTINCT FROM ? THEN NULL ELSE telegram_id END,
+           phone = ?, role = ?, job_title = ?, is_active = ?,
            ${PERMISSION_KEYS.map((k) => `${k} = ?`).join(", ")}
          WHERE id = ?`,
         name,
         tg,
+        phone,
+        phone,
         role,
         jobTitle,
         isActive,
@@ -758,11 +779,12 @@ export async function saveTeamMember(fd: FormData): Promise<ActionResult> {
       const granted = DEFAULT_PERMS[role];
       const perms = PERMISSION_KEYS.map((k) => (granted.includes(k) ? 1 : 0));
       await run(
-        `INSERT INTO users (name, telegram_username, role, job_title, is_active,
+        `INSERT INTO users (name, telegram_username, phone, role, job_title, is_active,
            ${PERMISSION_KEYS.join(", ")})
-         VALUES (?, ?, ?, ?, ?, ${PERMISSION_KEYS.map(() => "?").join(", ")})`,
+         VALUES (?, ?, ?, ?, ?, ?, ${PERMISSION_KEYS.map(() => "?").join(", ")})`,
         name,
         tg,
+        phone,
         role,
         jobTitle,
         isActive,

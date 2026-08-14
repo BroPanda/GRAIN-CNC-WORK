@@ -10,9 +10,9 @@ import fs from "node:fs";
 
 const DATA_DIR = path.join(process.cwd(), "data", "pg");
 const PORT = 5433;
-const USER = "grain";
-const PASSWORD = "grain";
-const DB = "grain";
+const USER = "frezalviv";
+const PASSWORD = "frezalviv";
+const DB = "frezalviv";
 
 const fresh = !fs.existsSync(DATA_DIR);
 
@@ -40,7 +40,16 @@ if (fresh) {
 }
 
 const url = `postgresql://${USER}:${PASSWORD}@localhost:${PORT}/${DB}`;
-fs.writeFileSync(path.join(process.cwd(), ".env.local"), `DATABASE_URL=${url}\n`);
+
+// оновлюємо лише рядок DATABASE_URL, решту (токен бота, секрети) не чіпаємо
+const envFile = path.join(process.cwd(), ".env.local");
+const kept = fs.existsSync(envFile)
+  ? fs
+      .readFileSync(envFile, "utf8")
+      .split(/\r?\n/)
+      .filter((line) => line.trim() && !line.startsWith("DATABASE_URL="))
+  : [];
+fs.writeFileSync(envFile, [`DATABASE_URL=${url}`, ...kept].join("\n") + "\n");
 
 console.log(`Postgres працює: ${url}`);
 console.log("DATABASE_URL записано в .env.local — можна запускати npm run dev");

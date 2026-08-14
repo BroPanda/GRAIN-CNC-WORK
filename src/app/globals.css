@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Фірмові кольори GRAIN, зняті з логотипа */
+  /* Фірмові кольори FREZALVIV, зняті з логотипа */
   --color-navy-950: #0b1a2b;
   --color-navy-900: #0f2337;
   --color-navy-850: #13293f;

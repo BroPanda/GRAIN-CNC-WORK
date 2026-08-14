@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { can, getCurrentUser } from "@/lib/auth";
@@ -7,6 +6,7 @@ import { ROLE_LABELS } from "@/lib/types";
 import { logout } from "@/lib/actions";
 import NavLink from "@/components/NavLink";
 import LiveUpdates from "@/components/LiveUpdates";
+import { Logo, LogoMark } from "@/components/Logo";
 import {
   IconArchive,
   IconBell,
@@ -30,16 +30,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* ── Сайдбар (десктоп) ───────────────────────────────── */}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-2 border-r border-white/8 p-4 lg:flex">
         <Link href="/queue" className="mb-4 flex items-center gap-3 px-1">
-          <Image
-            src="/grain-logo.jpg"
-            alt="GRAIN"
-            width={44}
-            height={44}
-            className="rounded-xl"
-            priority
-          />
+          <LogoMark size={44} />
           <div className="leading-tight">
-            <div className="font-bold tracking-wide text-gold-400">GRAIN</div>
+            <div className="font-bold tracking-wide">
+              <span style={{ color: "#1b93cf" }}>FREZA</span>
+              <span className="text-ink-muted">LVIV</span>
+            </div>
             <div className="text-xs text-ink-dim">задачник ЧПУ</div>
           </div>
         </Link>
@@ -88,8 +84,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Шапка (мобільна) */}
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/8 bg-navy-950/85 px-4 py-3 backdrop-blur-md lg:hidden">
           <Link href="/queue" className="flex items-center gap-2.5">
-            <Image src="/grain-logo.jpg" alt="GRAIN" width={34} height={34} className="rounded-lg" />
-            <span className="font-bold tracking-wide text-gold-400">GRAIN</span>
+            <Logo size={34} />
           </Link>
           <div className="ml-auto flex items-center gap-2">
             <span className="max-w-[9rem] truncate text-xs text-ink-muted">{user.name}</span>

@@ -144,7 +144,7 @@ export default function QueueList({ tasks, me, abilities }: Props) {
       <DndContext
         // стабільний id — інакше dnd-kit генерує різні aria-describedby
         // на сервері й клієнті, і React скаржиться на розбіжність розмітки
-        id="grain-queue"
+        id="freza-queue"
         sensors={sensors}
         collisionDetection={closestCenter}
         modifiers={[restrictToVerticalAxis, restrictToParentElement]}

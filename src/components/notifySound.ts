@@ -77,11 +77,11 @@ export function playNotifSound(bucket: NotifBucket): void {
 
 /* ------------------------------------------------------- налаштування звуку */
 
-const MUTE_KEY = "grain_sound_off"; // головний вимикач
-const BUCKETS_KEY = "grain_sound_off_buckets"; // вимкнені окремі категорії
+const MUTE_KEY = "freza_sound_off"; // головний вимикач
+const BUCKETS_KEY = "freza_sound_off_buckets"; // вимкнені окремі категорії
 
 /** Подія для інших компонентів на сторінці: налаштування щойно змінились. */
-export const SOUND_CHANGED = "grain-sound-changed";
+export const SOUND_CHANGED = "freza-sound-changed";
 
 function announce(): void {
   window.dispatchEvent(new Event(SOUND_CHANGED));

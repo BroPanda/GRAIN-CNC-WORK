@@ -45,6 +45,10 @@ export interface User {
   id: number;
   name: string;
   telegram_username: string | null;
+  /** Номер у форматі +380…, за яким людину пускають у застосунок. */
+  phone: string | null;
+  /** id акаунта Telegram — з'являється після підтвердження номера в боті. */
+  telegram_id: number | null;
   role: Role;
   /** Посада («Фрезерування», «Моделювання»…). `position` — небезпечне ім'я в SQL. */
   job_title: string | null;

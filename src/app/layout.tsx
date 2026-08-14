@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GRAIN — задачник ЧПУ",
-  description: "Черга робіт фрезерування для рекламної компанії GRAIN",
+  title: "FREZALVIV — задачник ЧПУ",
+  description: "Черга робіт фрезерування для рекламної компанії FREZALVIV",
 };
 
 export const viewport: Viewport = {

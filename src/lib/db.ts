@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS users (
   id                SERIAL PRIMARY KEY,
   name              TEXT    NOT NULL,
   telegram_username TEXT,
+  -- номер у форматі +380…; вписує власник заздалегідь, за ним і пускаємо в застосунок
+  phone             TEXT,
+  -- id акаунта в Telegram; проставляється сам, коли людина підтвердила номер боту
+  telegram_id       BIGINT,
   role              TEXT    NOT NULL CHECK (role IN ('owner','modeler','miller')),
   job_title         TEXT,
   is_active         INTEGER NOT NULL DEFAULT 1,
@@ -102,6 +106,15 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read_at, id);
+
+/* Одноразові посилання для входу: бот видає токен, сайт його з'їдає і відкриває сесію. */
+CREATE TABLE IF NOT EXISTS login_tokens (
+  token      TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 /**
@@ -112,9 +125,15 @@ CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, read_at, id)
 const MIGRATIONS = `
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS budget_uah NUMERIC(12,2);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS can_see_budget INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id BIGINT;
+-- один номер = одна людина, інакше незрозуміло, кого пускати
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tgid ON users(telegram_id) WHERE telegram_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_login_tokens_user ON login_tokens(user_id);
 `;
 
-/** Початкова команда GRAIN — створюється, якщо таблиця користувачів порожня. */
+/** Початкова команда FREZALVIV — створюється, якщо таблиця користувачів порожня. */
 const SEED_TEAM = `
 INSERT INTO users (name, role, job_title, can_create_tasks, can_edit_tasks,
   can_reorder_queue, can_upload_files, can_take_tasks, can_close_tasks, can_manage_team)
@@ -145,13 +164,13 @@ function makePool(): Pool {
 
 // Next перезавантажує модулі в dev — тримаємо один пул на процес
 const globalForDb = globalThis as unknown as {
-  __grainPool?: Pool;
-  __grainReady?: Promise<void>;
+  __frezaPool?: Pool;
+  __frezaReady?: Promise<void>;
 };
 
 function pool(): Pool {
-  globalForDb.__grainPool ??= makePool();
-  return globalForDb.__grainPool;
+  globalForDb.__frezaPool ??= makePool();
+  return globalForDb.__frezaPool;
 }
 
 /**
@@ -160,7 +179,7 @@ function pool(): Pool {
  * інстансів піднімаються одночасно.
  */
 function ensureSchema(): Promise<void> {
-  globalForDb.__grainReady ??= (async () => {
+  globalForDb.__frezaReady ??= (async () => {
     const client = await pool().connect();
     try {
       await client.query("SELECT pg_advisory_lock(727001)");
@@ -176,10 +195,10 @@ function ensureSchema(): Promise<void> {
     }
   })().catch((e) => {
     // не кешуємо провалену ініціалізацію, щоб наступний запит спробував знову
-    globalForDb.__grainReady = undefined;
+    globalForDb.__frezaReady = undefined;
     throw e;
   });
-  return globalForDb.__grainReady;
+  return globalForDb.__frezaReady;
 }
 
 export type Param = string | number | boolean | null;

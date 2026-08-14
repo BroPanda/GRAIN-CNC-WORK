@@ -29,7 +29,7 @@ export default function LiveUpdates({ userId }: { userId: number }) {
     window.addEventListener("pointerdown", prime, { once: true });
     window.addEventListener("keydown", prime, { once: true });
 
-    const key = `grain_last_notif_${userId}`;
+    const key = `freza_last_notif_${userId}`;
     const stored = Number(localStorage.getItem(key));
     if (stored) lastNotif.current = stored;
 

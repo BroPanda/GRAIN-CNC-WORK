@@ -3,7 +3,7 @@
  * Потрібне для хмари: до продакшн-бази прямого доступу немає, а права
  * й черга однаково перевіряються застосунком — тому дані виходять «живі».
  *
- * Запуск: node scripts/seed-web.mjs https://grain-cnc-work.vercel.app
+ * Запуск: node scripts/seed-web.mjs https://frezalviv.vercel.app
  */
 import { chromium } from "playwright";
 
@@ -80,7 +80,7 @@ function makeCubeStl() {
     [2, 7, 3], [2, 6, 7], [3, 4, 0], [3, 7, 4],
   ];
   const buf = Buffer.alloc(84 + faces.length * 50);
-  buf.write("GRAIN demo cube", 0);
+  buf.write("FREZALVIV demo cube", 0);
   buf.writeUInt32LE(faces.length, 80);
   let off = 84;
   for (const [a, b, c] of faces) {
