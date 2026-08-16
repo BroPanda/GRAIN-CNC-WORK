@@ -1,4 +1,4 @@
-import { Pool, types } from "pg";
+import { Pool, types, type PoolClient } from "pg";
 
 /**
  * Postgres: локально — вбудований сервер (`npm run pg`), на Vercel — Neon
@@ -139,6 +139,12 @@ CREATE TABLE IF NOT EXISTS login_tokens (
  * безпечні для повторного запуску.
  */
 const MIGRATIONS = `
+-- відмітка «схема цієї версії вже накатана»; дозволяє не гнати DDL при
+-- кожному холодному старті, див. SCHEMA_VERSION і ensureSchema()
+CREATE TABLE IF NOT EXISTS schema_state (
+  id      INTEGER PRIMARY KEY,
+  version INTEGER NOT NULL
+);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS budget_uah NUMERIC(12,2);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS can_see_budget INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
@@ -180,6 +186,13 @@ SELECT * FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM users);
 `;
 
+/**
+ * Версія схеми. Піднімати на одиницю щоразу, коли змінюються SCHEMA або
+ * MIGRATIONS — інакше нові інстанси вирішать, що все вже накатано, і не
+ * застосують зміни.
+ */
+const SCHEMA_VERSION = 1;
+
 function makePool(): Pool {
   const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
   if (!connectionString) {
@@ -194,6 +207,13 @@ function makePool(): Pool {
     // на serverless кожен інстанс тримає власний пул — беремо мінімум зʼєднань
     max: process.env.VERCEL ? 1 : 5,
     idleTimeoutMillis: 30_000,
+    // За замовчуванням connect() чекає вічно. Безкоштовний Neon засинає при
+    // простої, і тоді перше зʼєднання його будить — це секунди, не хвилини.
+    // Без цієї межі запит просто стоїть, поки Vercel не обірве всю функцію
+    // (504 FUNCTION_INVOCATION_TIMEOUT замість зрозумілої помилки).
+    // Довго тут чекати й не треба: краще швидко здатися й показати вікно
+    // очікування (src/app/error.tsx) — далі терпляче пробує вже браузер.
+    connectionTimeoutMillis: 5_000,
   });
 }
 
@@ -209,12 +229,38 @@ function pool(): Pool {
 }
 
 /**
+ * Чи накатана вже потрібна версія схеми. Один короткий запит — саме він
+ * лежить на шляху кожного холодного старту, тому має бути дешевим.
+ * Помилка від самої бази означає, що таблиці schema_state ще немає, тобто
+ * схему треба створювати з нуля. А от недоступну базу глушити не можна:
+ * інакше «не змогли спитати» виглядало б як «схеми немає».
+ */
+async function schemaIsCurrent(): Promise<boolean> {
+  try {
+    const res = await pool().query<{ version: number }>(
+      "SELECT version FROM schema_state WHERE id = 1"
+    );
+    return res.rows[0]?.version === SCHEMA_VERSION;
+  } catch (e) {
+    if (isNotConnected(e)) throw e;
+    return false;
+  }
+}
+
+/**
  * Створює схему й початкову команду. Викликається перед першим запитом,
  * один раз на процес. Advisory-lock захищає від гонки, коли кілька
  * інстансів піднімаються одночасно.
+ *
+ * DDL проганяється лише коли версія схеми не збігається. Раніше три десятки
+ * команд виконувалися при кожному холодному старті, та ще й під спільним
+ * локом: на serverless інстанси піднімаються пачками, у пулі одне зʼєднання,
+ * і вони чекали один одного до таймауту функції.
  */
 function ensureSchema(): Promise<void> {
   globalForDb.__frezaReady ??= (async () => {
+    if (await schemaIsCurrent()) return;
+
     const client = await pool().connect();
     try {
       await client.query("SELECT pg_advisory_lock(727001)");
@@ -223,6 +269,10 @@ function ensureSchema(): Promise<void> {
         await client.query(MIGRATIONS);
         await client.query(SEED_TEAM);
         await client.query(SEED_MATERIALS);
+        await client.query(
+          `INSERT INTO schema_state (id, version) VALUES (1, ${SCHEMA_VERSION})
+           ON CONFLICT (id) DO UPDATE SET version = EXCLUDED.version`
+        );
       } finally {
         await client.query("SELECT pg_advisory_unlock(727001)");
       }
@@ -245,10 +295,47 @@ function toPg(sql: string): string {
   return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-export async function queryAll<T>(sql: string, ...params: Param[]): Promise<T[]> {
+/**
+ * Ознака, що зʼєднання навіть не встановилося: база спить або ще прокидається.
+ * Свідомо не вважаємо такими обриви посеред запиту (ECONNRESET, 57P01) — там
+ * невідомо, чи встиг застосуватися запис, і повтор міг би продублювати вставку.
+ * Тут же не пішло нічого, тому пробувати вдруге безпечно.
+ */
+function isNotConnected(e: unknown): boolean {
+  const code = (e as { code?: unknown }).code;
+  const message = e instanceof Error ? e.message : "";
+  return (
+    code === "ECONNREFUSED" ||
+    code === "ETIMEDOUT" ||
+    // формулювання залежить від версії pg, тому ловимо обидві
+    /timeout exceeded when trying to connect/i.test(message) ||
+    /Connection terminated due to connection timeout/i.test(message)
+  );
+}
+
+async function attempt<T>(sql: string, params: Param[]): Promise<T[]> {
   await ensureSchema();
   const res = await pool().query(toPg(sql), params);
   return res.rows as T[];
+}
+
+/**
+ * Виконує запит, а якщо база не встигла прокинутися — пробує ще раз.
+ * Одна повторна спроба закриває звичайний випадок: перший стук будить Neon,
+ * другий вже застає його на ногах.
+ */
+async function exec<T>(sql: string, params: Param[]): Promise<T[]> {
+  try {
+    return await attempt<T>(sql, params);
+  } catch (e) {
+    if (!isNotConnected(e)) throw e;
+    await new Promise((r) => setTimeout(r, 1_000));
+    return attempt<T>(sql, params);
+  }
+}
+
+export function queryAll<T>(sql: string, ...params: Param[]): Promise<T[]> {
+  return exec<T>(sql, params);
 }
 
 export async function queryOne<T>(sql: string, ...params: Param[]): Promise<T | null> {
@@ -257,8 +344,7 @@ export async function queryOne<T>(sql: string, ...params: Param[]): Promise<T | 
 }
 
 export async function run(sql: string, ...params: Param[]): Promise<void> {
-  await ensureSchema();
-  await pool().query(toPg(sql), params);
+  await exec(sql, params);
 }
 
 /** INSERT з поверненням id нового рядка. */
@@ -273,12 +359,27 @@ export async function count(sql: string, ...params: Param[]): Promise<number> {
   return row?.n ?? 0;
 }
 
+/**
+ * Бере зʼєднання, а якщо база ще прокидається — пробує ще раз. Повторюємо
+ * тільки саме зʼєднання: жоден запит транзакції на цей момент не пішов.
+ */
+async function connectWithRetry(): Promise<PoolClient> {
+  try {
+    await ensureSchema();
+    return await pool().connect();
+  } catch (e) {
+    if (!isNotConnected(e)) throw e;
+    await new Promise((r) => setTimeout(r, 1_000));
+    await ensureSchema();
+    return pool().connect();
+  }
+}
+
 /** Транзакція: усі запити всередині або застосуються, або відкатяться. */
 export async function transaction(
   body: (exec: (sql: string, ...params: Param[]) => Promise<void>) => Promise<void>
 ): Promise<void> {
-  await ensureSchema();
-  const client = await pool().connect();
+  const client = await connectWithRetry();
   try {
     await client.query("BEGIN");
     await body(async (sql, ...params) => {

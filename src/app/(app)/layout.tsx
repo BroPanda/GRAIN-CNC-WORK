@@ -17,6 +17,13 @@ import {
   IconTeam,
 } from "@/components/Icons";
 
+/**
+ * Запас часу на запити. За замовчуванням Vercel обриває функцію значно
+ * раніше, ніж встигає прокинутися заснула база, і людина бачить не наше
+ * вікно очікування, а службову сторінку 504.
+ */
+export const maxDuration = 30;
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");

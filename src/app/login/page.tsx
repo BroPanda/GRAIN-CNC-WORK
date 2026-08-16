@@ -7,6 +7,9 @@ import { PERMISSION_KEYS, ROLE_LABELS } from "@/lib/types";
 import { IconTelegram } from "@/components/Icons";
 import { LogoMark } from "@/components/Logo";
 
+/** Запас часу на прокидання бази — як і в (app)/layout.tsx, вхід теж її читає. */
+export const maxDuration = 30;
+
 const ROLE_ORDER = ["owner", "modeler", "miller"] as const;
 
 const ERRORS: Record<string, string> = {
