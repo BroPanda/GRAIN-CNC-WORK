@@ -57,7 +57,6 @@ const browser = await chromium.launch();
   await page.fill("#thickness_mm", "10");
   await page.fill("#quantity", "3");
   await page.fill("#customer", "Тест Клієнт");
-  await page.fill("#order_no", "E2E-1");
   await page.selectOption("#priority", "urgent");
   await shot(page, "02-mobile-new-task");
 
@@ -65,6 +64,12 @@ const browser = await chromium.launch();
   await page.waitForURL("**/queue", { timeout: 20000 });
   const created = page.getByText("E2E: панель-кронштейн, розкрій");
   check("задача створена і в черзі", await created.first().isVisible());
+
+  // номер замовлення руками не вводиться — його видає сам застосунок
+  check(
+    "номер замовлення присвоєно",
+    /№ \d{4}-\d{3}/.test(await page.locator("body").innerText())
+  );
 
   // терміново → має стояти першою в секції «У черзі»
   const firstQueued = await page
@@ -96,11 +101,11 @@ const browser = await chromium.launch();
   );
   await shot(page, "04-mobile-queue-miller");
 
-  // Беремо в роботу задачу C-102
-  const card = page.locator("article").filter({ hasText: "C-102" }).first();
+  // Беремо в роботу задачу 2026-118
+  const card = page.locator("article").filter({ hasText: "2026-118" }).first();
   await card.getByRole("button", { name: /Взяти в роботу/ }).click();
   await page.waitForTimeout(2500);
-  const inWork = page.locator("article").filter({ hasText: "C-102" }).first();
+  const inWork = page.locator("article").filter({ hasText: "2026-118" }).first();
   check("статус став «В роботі»", (await inWork.textContent())?.includes("В роботі"));
   await shot(page, "05-mobile-taken");
 
@@ -122,8 +127,8 @@ const browser = await chromium.launch();
 
   // Закріплену за Володею задачу він бачить
   check(
-    "закріплена за ним задача (C-104) видима",
-    ((await page.locator("body").textContent()) ?? "").includes("C-104")
+    "закріплена за ним задача (2026-125) видима",
+    ((await page.locator("body").textContent()) ?? "").includes("2026-125")
   );
 
   // Задачу на доопрацюванні брати в роботу не можна
@@ -213,8 +218,8 @@ const browser = await chromium.launch();
   const handleCount = await handles.count();
   check("є ручки перетягування", handleCount >= 2, `${handleCount} шт`);
 
-  const codesBefore = await page.locator("article").evaluateAll((els) =>
-    els.map((e) => e.textContent?.match(/C-\d+/)?.[0]).filter(Boolean)
+  const ordersBefore = await page.locator("article").evaluateAll((els) =>
+    els.map((e) => e.textContent?.match(/\d{4}-\d{3}/)?.[0]).filter(Boolean)
   );
 
   const src = await handles.nth(0).boundingBox();
@@ -226,13 +231,13 @@ const browser = await chromium.launch();
   await page.waitForTimeout(3000);
   await page.reload({ waitUntil: "networkidle" });
 
-  const codesAfter = await page.locator("article").evaluateAll((els) =>
-    els.map((e) => e.textContent?.match(/C-\d+/)?.[0]).filter(Boolean)
+  const ordersAfter = await page.locator("article").evaluateAll((els) =>
+    els.map((e) => e.textContent?.match(/\d{4}-\d{3}/)?.[0]).filter(Boolean)
   );
   check(
     "порядок черги змінився і зберігся після перезавантаження",
-    JSON.stringify(codesBefore) !== JSON.stringify(codesAfter),
-    `${codesBefore.join(",")} → ${codesAfter.join(",")}`
+    JSON.stringify(ordersBefore) !== JSON.stringify(ordersAfter),
+    `${ordersBefore.join(",")} → ${ordersAfter.join(",")}`
   );
   await shot(page, "09-desktop-reordered");
 
@@ -241,13 +246,13 @@ const browser = await chromium.launch();
   if ((await up.count()) > 1) {
     await up.nth(1).click();
     await page.waitForTimeout(2500);
-    const codesNudged = await page.locator("article").evaluateAll((els) =>
-      els.map((e) => e.textContent?.match(/C-\d+/)?.[0]).filter(Boolean)
+    const ordersNudged = await page.locator("article").evaluateAll((els) =>
+      els.map((e) => e.textContent?.match(/\d{4}-\d{3}/)?.[0]).filter(Boolean)
     );
     check(
       "кнопка «вище» переставила задачу",
-      JSON.stringify(codesNudged) !== JSON.stringify(codesAfter),
-      `${codesAfter.join(",")} → ${codesNudged.join(",")}`
+      JSON.stringify(ordersNudged) !== JSON.stringify(ordersAfter),
+      `${ordersAfter.join(",")} → ${ordersNudged.join(",")}`
     );
   }
 
@@ -279,20 +284,27 @@ const browser = await chromium.launch();
     !filesTabText.includes("на доопрацювання")
   );
 
-  // Звук окремої категорії вимикається і переживає перезавантаження
-  await page.getByRole("button", { name: "Вимкнути звук: Доопрацювання" }).first().click();
+  // Звук окремої категорії вимикається і переживає перезавантаження.
+  // Кнопки-таблетки живуть на сторінці налаштувань, а стан «увімкнено»
+  // показують через aria-pressed.
+  await page.goto(`${BASE}/notifications/settings`, { waitUntil: "networkidle" });
+  const soundBlock = page.locator("section", { hasText: "Звук у застосунку" }).first();
+  const rework = soundBlock.getByRole("button", { name: "Доопрацювання", exact: true });
+  const done = soundBlock.getByRole("button", { name: "Виконано", exact: true });
+
+  await rework.first().click();
   await page.waitForTimeout(500);
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(800);
   check(
     "звук категорії вимкнено і збережено",
-    (await page.getByRole("button", { name: "Увімкнути звук: Доопрацювання" }).count()) > 0
+    (await rework.first().getAttribute("aria-pressed")) === "false"
   );
   check(
     "інші категорії лишились зі звуком",
-    (await page.getByRole("button", { name: "Вимкнути звук: Виконано" }).count()) > 0
+    (await done.first().getAttribute("aria-pressed")) === "true"
   );
-  await page.getByRole("button", { name: "Увімкнути звук: Доопрацювання" }).first().click();
+  await rework.first().click();
   await page.waitForTimeout(400);
 
   // Точний час на картці (на вкладці, де картки точно є)
@@ -435,8 +447,12 @@ const browser = await chromium.launch();
 
   await loginAs(page, "Тест Оператор");
   const seen = (await page.locator("body").textContent()) ?? "";
-  check("новому оператору доступна спільна черга", seen.includes("C-102"));
-  check("чужа закріплена задача (C-104) від нього прихована", !seen.includes("C-104"));
+  // 2026-121 узято свідомо: вона лежить у спільному пулі від самого seed і її
+  // не торкаються попередні розділи. Раніше тут стояла 2026-118, але до цього
+  // місця вона встигає піти в роботу й на доопрацювання — і перевірка залежала
+  // від чужих кроків, а не від прав нового оператора
+  check("новому оператору доступна спільна черга", seen.includes("2026-121"));
+  check("чужа закріплена задача (2026-125) від нього прихована", !seen.includes("2026-125"));
   await ctx.close();
 }
 
@@ -481,7 +497,7 @@ const browser = await chromium.launch();
   const millerCtx = await browser.newContext({ viewport: { width: 1440, height: 950 } });
   const miller = await millerCtx.newPage();
   await loginAs(miller, "Володя");
-  const free = miller.locator("article").filter({ hasText: "C-102" }).first();
+  const free = miller.locator("article").filter({ hasText: "2026-118" }).first();
   await free.getByRole("button", { name: /Взяти в роботу/ }).click();
   await miller.waitForTimeout(2500);
 
