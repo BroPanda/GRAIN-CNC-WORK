@@ -5,6 +5,7 @@ import type { TaskListItem } from "@/lib/types";
 import TaskCard from "@/components/TaskCard";
 import TaskActions from "@/components/TaskActions";
 import { abilitiesFor } from "@/lib/abilities";
+import { todayInKyiv } from "@/lib/format";
 import QueueList from "@/components/QueueList";
 import Section from "@/components/Section";
 import { IconClock, IconPlus, IconRework } from "@/components/Icons";
@@ -23,10 +24,14 @@ const FILTERS: readonly Filter[] = [
 const isFilter = (v: string | undefined): v is Filter =>
   !!v && (FILTERS as readonly string[]).includes(v);
 
+/**
+ * Протерміновано = термін уже минув. Строго менше: «термін сьогодні» ще не
+ * прострочка, і бейдж на карточці каже те саме. Дата київська — так само, як
+ * її рахують лічильник у getStats() і dueMeta().
+ */
 function isOverdue(task: TaskListItem): boolean {
   if (!task.due_date) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return task.due_date <= today;
+  return task.due_date < todayInKyiv();
 }
 
 export default async function QueuePage({

@@ -73,6 +73,20 @@ export function formatDueDate(due: string): string {
   return `${d}.${m}.${y.slice(2)}`;
 }
 
+/**
+ * Сьогоднішня дата в цеху, «YYYY-MM-DD». Саме київська, а не локальна:
+ * карточки задач малюються то на сервері, то в браузері (QueueList —
+ * клієнтський компонент), а сервер на Vercel живе в UTC. Через це до 3-ї
+ * ночі та сама задача виглядала протермінованою в списку й не протермінованою
+ * у лічильнику. Одна дата на всіх — одна відповідь.
+ *
+ * У SQL те саме робить константа KYIV у src/lib/queries.ts.
+ */
+export function todayInKyiv(): string {
+  // en-CA дає одразу «YYYY-MM-DD»
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv" }).format(new Date());
+}
+
 export interface DueMeta {
   label: string;
   tone: "danger" | "warn" | "muted";
@@ -81,12 +95,9 @@ export interface DueMeta {
 /** Наскільки гарячий дедлайн: протерміновано / сьогодні-завтра / спокійно. */
 export function dueMeta(due: string | null): DueMeta | null {
   if (!due) return null;
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
-    today.getDate()
-  ).padStart(2, "0")}`;
   const days = Math.round(
-    (new Date(`${due}T00:00:00`).getTime() - new Date(`${todayStr}T00:00:00`).getTime()) / 86400000
+    (new Date(`${due}T00:00:00Z`).getTime() - new Date(`${todayInKyiv()}T00:00:00Z`).getTime()) /
+      86400000
   );
 
   if (days < 0) return { label: `Протерміновано на ${Math.abs(days)} дн`, tone: "danger" };

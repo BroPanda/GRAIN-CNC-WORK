@@ -230,8 +230,11 @@ export async function getStats(viewer: User): Promise<Stats> {
     n("status = 'queued'"),
     n("status = 'in_progress'"),
     n("status = 'rework'"),
+    // CURRENT_DATE тут не годиться: на Neon сесія в UTC, тож до 3-ї ночі за
+    // Києвом лічильник відставав на добу від бейджів у списку задач
     n(
-      "status IN ('queued','in_progress','rework') AND due_date IS NOT NULL AND due_date < CURRENT_DATE"
+      `status IN ('queued','in_progress','rework') AND due_date IS NOT NULL
+       AND due_date < (now() ${KYIV})::date`
     ),
   ]);
 
